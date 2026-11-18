@@ -28,7 +28,30 @@ internal static class TableReclaimParityRunner
     private sealed record Row(
         string Pdf, string Corpus, int Page, bool InSubset, int Ruling,
         int HeavyWords, int FastWords, double RecallHeavyInFast, double RecallFastInHeavy, bool Escalated, bool Failed,
-        double CharRecall = 0);
+        double CharRecall = 0)
+    {
+        /// <summary>The page could not be read or compared; no measurements.</summary>
+        public static Row FailedFor(Cand c) => Unmeasured(c, escalated: false, failed: true);
+
+        /// <summary>The shipped abstention guard sends the page to the heavy lane; not compared.</summary>
+        public static Row EscalatedFor(Cand c) => Unmeasured(c, escalated: true, failed: false);
+
+        public static Row Measured(Cand c, int heavyWords, int fastWords,
+                                   double recallHeavyInFast, double recallFastInHeavy, double charRecall) =>
+            new(c.Pdf, c.Corpus, c.PageIndex0 + 1, c.InSubset, c.Ruling,
+                HeavyWords: heavyWords, FastWords: fastWords,
+                RecallHeavyInFast: recallHeavyInFast, RecallFastInHeavy: recallFastInHeavy,
+                Escalated: false, Failed: false, CharRecall: charRecall);
+
+        private static Row Unmeasured(Cand c, bool escalated, bool failed) =>
+            new(c.Pdf, c.Corpus, c.PageIndex0 + 1, c.InSubset, c.Ruling,
+                HeavyWords: 0, FastWords: 0, RecallHeavyInFast: 0, RecallFastInHeavy: 0,
+                Escalated: escalated, Failed: failed);
+    }
+
+    /// <summary>Logs a per-PDF or per-page failure; the row is recorded as Failed by the caller.</summary>
+    private static void ReportFailure(string what, Exception ex) =>
+        Console.Error.WriteLine($"  failed: {what}: {ex.GetType().Name}: {ex.Message}");
 
     private static readonly string[] DefaultSubset =
         { "Test-Data", "Test-Data-4", "Test-Data-7", "Test-Data-17", "Test-Data-26" };
@@ -100,9 +123,10 @@ internal static class TableReclaimParityRunner
                     using var ms = new MemoryStream(bytes, false);
                     analysis = PdfAnalyzer.Analyze(ms);
                 }
-                catch
+                catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
-                    foreach (var c in grp) rows.Add(new Row(c.Pdf, c.Corpus, c.PageIndex0 + 1, c.InSubset, c.Ruling, 0, 0, 0, 0, false, true));
+                    ReportFailure(grp.Key, ex);
+                    foreach (var c in grp) rows.Add(Row.FailedFor(c));
                     continue;
                 }
 
@@ -129,7 +153,7 @@ internal static class TableReclaimParityRunner
                             if (Foliant.Orchestration.FastLaneAbstention.ShouldAbstain(
                                     PageKind.TableOrComplexLayout, structureRuns, trust, fastPage, abstentionOptions))
                             {
-                                rows.Add(new Row(c.Pdf, c.Corpus, c.PageIndex0 + 1, c.InSubset, c.Ruling, 0, 0, 0, 0, true, false));
+                                rows.Add(Row.EscalatedFor(c));
                                 if (++done % 25 == 0) Console.WriteLine($"  …{done:N0}/{union.Count:N0}");
                                 continue;
                             }
@@ -143,12 +167,13 @@ internal static class TableReclaimParityRunner
                         var fastW = Words(fastPage.Markdown);
                         var heavyW = Words(heavyText);
                         double charRecall = Recall(Trigrams(heavyText), Trigrams(fastPage.Markdown)); // whitespace/punct-insensitive
-                        rows.Add(new Row(c.Pdf, c.Corpus, c.PageIndex0 + 1, c.InSubset, c.Ruling,
-                            heavyW.Count, fastW.Count, Recall(heavyW, fastW), Recall(fastW, heavyW), false, false, charRecall));
+                        rows.Add(Row.Measured(c, heavyW.Count, fastW.Count,
+                            Recall(heavyW, fastW), Recall(fastW, heavyW), charRecall));
                     }
-                    catch
+                    catch (Exception ex) when (ex is not OutOfMemoryException)
                     {
-                        rows.Add(new Row(c.Pdf, c.Corpus, c.PageIndex0 + 1, c.InSubset, c.Ruling, 0, 0, 0, 0, false, true));
+                        ReportFailure($"{c.Pdf} p{c.PageIndex0 + 1}", ex);
+                        rows.Add(Row.FailedFor(c));
                     }
 
                     if (++done % 25 == 0) Console.WriteLine($"  …{done:N0}/{union.Count:N0}");
@@ -210,7 +235,12 @@ internal static class TableReclaimParityRunner
         {
             byte[] bytes; ZD.DocumentAnalysis analysis;
             try { bytes = File.ReadAllBytes(grp.Key); using var ms = new MemoryStream(bytes, false); analysis = PdfAnalyzer.Analyze(ms); }
-            catch { foreach (var c in grp) rows.Add(new Row(c.Pdf, c.Corpus, c.PageIndex0 + 1, c.InSubset, c.Ruling, 0, 0, 0, 0, false, true)); continue; }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                ReportFailure(grp.Key, ex);
+                foreach (var c in grp) rows.Add(Row.FailedFor(c));
+                continue;
+            }
             var runsByPage = analysis.TextRuns.GroupBy(r => r.PageIndex).ToDictionary(g => g.Key, g => (IReadOnlyList<ZD.TextRunInfo>)g.ToList());
             foreach (var c in grp)
             {
@@ -221,10 +251,15 @@ internal static class TableReclaimParityRunner
                     string reference = Pdftotext(grp.Key, c.PageIndex0 + 1);
                     var fastW = Words(fast); var refW = Words(reference);
                     double charRecall = Recall(Trigrams(reference), Trigrams(fast));   // ref = text-layer truth
-                    rows.Add(new Row(c.Pdf, c.Corpus, c.PageIndex0 + 1, c.InSubset, c.Ruling,
-                        refW.Count, fastW.Count, Recall(refW, fastW), Recall(fastW, refW), false, false, charRecall));
+                    // HeavyWords holds the pdftotext reference count in this mode.
+                    rows.Add(Row.Measured(c, refW.Count, fastW.Count,
+                        Recall(refW, fastW), Recall(fastW, refW), charRecall));
                 }
-                catch { rows.Add(new Row(c.Pdf, c.Corpus, c.PageIndex0 + 1, c.InSubset, c.Ruling, 0, 0, 0, 0, false, true)); }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    ReportFailure($"{c.Pdf} p{c.PageIndex0 + 1}", ex);
+                    rows.Add(Row.FailedFor(c));
+                }
                 if (++done % 50 == 0) Console.WriteLine($"  …{done:N0}/{union.Count:N0}");
             }
         }
