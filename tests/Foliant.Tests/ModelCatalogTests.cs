@@ -55,6 +55,40 @@ public class ModelCatalogTests
         }
     }
 
+    [Fact]
+    public void AllAssets_HavePlainFileNames()
+    {
+        Assert.All(ModelCatalog.All, a => Assert.Equal(Path.GetFileName(a.FileName), a.FileName));
+    }
+
+    [Theory]
+    [InlineData("../escape.onnx")]
+    [InlineData("..")]
+    [InlineData("sub/model.onnx")]
+    [InlineData("sub\\model.onnx")]
+    [InlineData("/etc/escape.onnx")]
+    [InlineData("")]
+    public async Task ModelCache_RejectsFileNamesOutsideTheCache(string fileName)
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "foliant-tests", Path.GetRandomFileName());
+        try
+        {
+            var asset = ModelCatalog.OcrRecognitionEnglishDict with
+            {
+                FileName = fileName,
+                Url = "https://huggingface.co/invalid/never-fetched",
+            };
+            var cache = new ModelCache(dir, new HttpClient(new FailingHandler()));
+
+            await Assert.ThrowsAsync<ArgumentException>(() => cache.GetPathAsync(asset));
+            Assert.False(Directory.Exists(dir));   // rejected before touching the file system
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
     private sealed class FailingHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(
