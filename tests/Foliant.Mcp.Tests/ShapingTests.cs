@@ -205,6 +205,7 @@ public class ShapingTests
         var window = Shape.BuildWindow(doc, 1, 1, blockSensitivePages: false);
 
         Assert.True(window.Pages[0].MarkdownTruncated);
-        Assert.True(window.Pages[0].Markdown.Length <= Shape.MaxPageMarkdownChars + 32);
+        Assert.NotNull(window.Pages[0].Markdown);
+        Assert.True(window.Pages[0].Markdown!.Length <= Shape.MaxPageMarkdownChars + 32);
     }
 }

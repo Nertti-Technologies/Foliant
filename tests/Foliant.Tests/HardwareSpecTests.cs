@@ -53,7 +53,7 @@ public class HardwareSpecTests
     [InlineData("Memory: 32 GB RAM", "32 GB", null)]
     public void Recognizer_normalizes_memory_capacity_and_generation(string text, string value, string? unit)
     {
-        var mem = Assert.Single(AttributeRecognizer.Recognize(text).Where(a => a.Category == SpecCategory.Memory));
+        var mem = Assert.Single(AttributeRecognizer.Recognize(text), a => a.Category == SpecCategory.Memory);
         Assert.Equal(value, mem.Value);
         Assert.Equal(unit, mem.Unit);
     }
@@ -61,8 +61,8 @@ public class HardwareSpecTests
     [Fact]
     public void Recognizer_reads_storage_capacity_and_medium()
     {
-        var attr = Assert.Single(AttributeRecognizer.Recognize("102TB NVMe U.2 storage")
-            .Where(a => a.Category == SpecCategory.Storage));
+        var attr = Assert.Single(AttributeRecognizer.Recognize("102TB NVMe U.2 storage"),
+            a => a.Category == SpecCategory.Storage);
         Assert.Equal("102 TB", attr.Value);
         Assert.Equal("NVMe", attr.Unit);
     }
@@ -70,8 +70,8 @@ public class HardwareSpecTests
     [Fact]
     public void Recognizer_reads_processor_cores_and_clock()
     {
-        var cpu = Assert.Single(AttributeRecognizer.Recognize("Intel Xeon W-3335, 16-core, 3.4 GHz")
-            .Where(a => a.Category == SpecCategory.Processor));
+        var cpu = Assert.Single(AttributeRecognizer.Recognize("Intel Xeon W-3335, 16-core, 3.4 GHz"),
+            a => a.Category == SpecCategory.Processor);
         Assert.Contains("16-core", cpu.Value);
         Assert.Contains("3.4 GHz", cpu.Value);
     }
@@ -79,8 +79,8 @@ public class HardwareSpecTests
     [Fact]
     public void Recognizer_reads_rack_form_factor()
     {
-        var ff = Assert.Single(AttributeRecognizer.Recognize("3U rack-mounted server chassis")
-            .Where(a => a.Category == SpecCategory.FormFactor));
+        var ff = Assert.Single(AttributeRecognizer.Recognize("3U rack-mounted server chassis"),
+            a => a.Category == SpecCategory.FormFactor);
         Assert.Equal("3U", ff.Value);
     }
 

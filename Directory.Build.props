@@ -10,6 +10,11 @@
     <Deterministic>true</Deterministic>
     <!-- XML-doc warnings are tracked but not yet enforced pre-1.0 -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Quality gate: the recommended .NET analyzer set, and every warning fails the build, so a
+         new reliability/maintainability issue is caught locally and in CI rather than by a later
+         scan. Rules switched off on purpose are listed with their reasons in .editorconfig. -->
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <!-- Package version is derived from the git tag by MinVer (configured in src/Directory.Build.props);

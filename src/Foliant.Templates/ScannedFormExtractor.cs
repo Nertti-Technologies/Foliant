@@ -18,6 +18,8 @@ namespace Foliant.Templates;
 /// </summary>
 public static class ScannedFormExtractor
 {
+    private static readonly char[] WordSeparators = [' ', '—', '-', '/', '.', '(', ')', ',', ':', '\t'];
+
     public static IReadOnlyList<FormField> Extract(
         PageImage image, IReadOnlyList<TextLine> lines, FormLayout template, int templatePage)
     {
@@ -112,7 +114,7 @@ public static class ScannedFormExtractor
     private static List<string> DistinctiveTokens(string? text) =>
         (text ?? string.Empty)
         .ToUpperInvariant()
-        .Split(new[] { ' ', '—', '-', '/', '.', '(', ')', ',', ':', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+        .Split(WordSeparators, StringSplitOptions.RemoveEmptyEntries)
         .Where(w => w.Length >= 4 && w.Any(char.IsLetter))
         .Distinct(StringComparer.Ordinal)
         .ToList();

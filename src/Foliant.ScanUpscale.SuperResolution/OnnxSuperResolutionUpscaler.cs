@@ -163,7 +163,7 @@ public sealed class OnnxSuperResolutionUpscaler : IScanUpscaler, IDisposable
 
             using var results = _session.Run(
                 new[] { NamedOnnxValue.CreateFromTensor(_inputName, input) });
-            var outT = results.First().AsTensor<float>();       // [n,3,_tileH*scale,_tileW*scale]
+            var outT = results[0].AsTensor<float>();       // [n,3,_tileH*scale,_tileW*scale]
 
             for (int b = 0; b < n; b++)
                 StitchTile(outT, b, origins[start + b], image, outBgra, outStridePx);
@@ -228,7 +228,7 @@ public sealed class OnnxSuperResolutionUpscaler : IScanUpscaler, IDisposable
     {
         var input = new DenseTensor<float>(new[] { 1, 3, _tileH, _tileW });
         using var results = _session.Run(new[] { NamedOnnxValue.CreateFromTensor(_inputName, input) });
-        int outEdge = results.First().AsTensor<float>().Dimensions[^1];
+        int outEdge = results[0].AsTensor<float>().Dimensions[^1];
         int scale = Math.Max(1, outEdge / _tileW);
         if (scale is not (2 or 3 or 4))
             throw new InvalidOperationException(

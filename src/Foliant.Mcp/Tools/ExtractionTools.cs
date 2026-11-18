@@ -50,6 +50,8 @@ public static class ExtractionTools
 
         var run = registry.Create(path, pagesToProcess);
 
+        // The run deliberately outlives this request (the client polls for it), so the request's
+        // cancellation token is not forwarded.
         _ = Task.Run(async () =>
         {
             await registry.Gate.WaitAsync().ConfigureAwait(false);
@@ -78,7 +80,7 @@ public static class ExtractionTools
             {
                 registry.Gate.Release();
             }
-        });
+        }, CancellationToken.None);
 
         return Shape.ToJson(new
         {

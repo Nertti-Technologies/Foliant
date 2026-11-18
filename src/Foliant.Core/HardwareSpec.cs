@@ -15,6 +15,8 @@ public enum SystemKind { Unknown, Server, Desktop, Laptop, Workstation, Monitor,
 /// source fragment it was recognized from (kept for provenance); <paramref name="Value"/> and
 /// <paramref name="Unit"/> are the normalized capacity/frequency and its qualifier when one was parsed.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1711",
+    Justification = "Shipped public type name; renaming is a breaking API change.")]
 public sealed record SpecAttribute(
     SpecCategory Category, string RawText, string? Value = null, string? Unit = null);
 
