@@ -205,7 +205,7 @@ public sealed class DefaultPagePreprocessor : IPagePreprocessor
             }
         }
 
-        if (specks.Count < (long)w * h * SpeckDensityThreshold) return false;
+        if (specks.Count < (double)w * h * SpeckDensityThreshold) return false;
 
         foreach (int i in specks)
         {

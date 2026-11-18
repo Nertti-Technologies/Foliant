@@ -75,8 +75,8 @@ public sealed class DocLayoutYoloDetector : IDisposable
         {
             canvas.Clear(new SKColor(114, 114, 114));
             var dest = new SKRect(padLeft, padTop, padLeft + resizedW, padTop + resizedH);
-            using var paint = new SKPaint { FilterQuality = SKFilterQuality.Medium };
-            canvas.DrawBitmap(page, dest, paint);
+            using var image = SKImage.FromBitmap(page);
+            canvas.DrawImage(image, dest, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
         }
 
         // ── To tensor: BCHW float32, BGR order, [0,1] ───────────────────────
@@ -130,8 +130,9 @@ public sealed class DocLayoutYoloDetector : IDisposable
         using var canvas = new SKCanvas(annotated);
         using var textPaint = new SKPaint
         {
-            TextSize = 28, IsAntialias = true, Color = SKColors.White,
+            IsAntialias = true, Color = SKColors.White,
         };
+        using var font = new SKFont { Size = 28 };
 
         foreach (var (region, i) in regions.Select((r, i) => (r, i)))
         {
@@ -143,10 +144,10 @@ public sealed class DocLayoutYoloDetector : IDisposable
             canvas.DrawRect(region.X1, region.Y1, region.Width, region.Height, boxPaint);
 
             var label = $"{i}:{region.Label} {region.Confidence:0.00}";
-            float tw = textPaint.MeasureText(label);
+            float tw = font.MeasureText(label);
             using var bgPaint = new SKPaint { Color = color, Style = SKPaintStyle.Fill };
             canvas.DrawRect(region.X1, Math.Max(0, region.Y1 - 34), tw + 12, 34, bgPaint);
-            canvas.DrawText(label, region.X1 + 6, Math.Max(28, region.Y1 - 8), textPaint);
+            canvas.DrawText(label, region.X1 + 6, Math.Max(28, region.Y1 - 8), SKTextAlign.Left, font, textPaint);
         }
 
         using var image = SKImage.FromBitmap(annotated);

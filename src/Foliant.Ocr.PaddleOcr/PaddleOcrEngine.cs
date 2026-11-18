@@ -266,7 +266,7 @@ public sealed class PaddleOcrEngine : IOcrEngine
             if (scoreSum / count < BoxScoreThreshold) continue;
 
             // DB unclip approximation: expand bbox by offset = area*ratio/perimeter
-            float offset = (float)(bw * bh) * UnclipRatio / (2 * (bw + bh));
+            float offset = (float)bw * bh * UnclipRatio / (2f * (bw + bh));
             float sx = (float)origW / w, sy = (float)origH / h;
 
             boxes.Add(new SKRect(

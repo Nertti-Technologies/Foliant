@@ -9,7 +9,7 @@ public sealed record PreprocessedPage(
     bool WatermarkSuppressed = false)
 {
     public bool Changed =>
-        SkewCorrectedDegrees != 0f || ContrastStretched || Denoised || WatermarkSuppressed;
+        Math.Abs(SkewCorrectedDegrees) > 0f || ContrastStretched || Denoised || WatermarkSuppressed;
 }
 
 /// <summary>

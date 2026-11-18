@@ -69,29 +69,7 @@ internal static class TableReclaimParityRunner
         // Phase A — collect reclaimed candidates: born-digital TableOrComplexLayout, ruling < threshold.
         var pdfs = Directory.EnumerateFiles(pdfDir, "*.pdf", SearchOption.AllDirectories).ToList();
         Console.WriteLine($"Scanning {pdfs.Count:N0} PDFs for reclaimed pages (table-class, born-digital, ruling < {ruling})…");
-        var cands = new System.Collections.Concurrent.ConcurrentBag<Cand>();
-        Parallel.ForEach(pdfs, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, pdf =>
-        {
-            string rel = Path.GetRelativePath(pdfDir, pdf);
-            string corpus = rel.Split(Path.DirectorySeparatorChar, 2)[0];
-            bool inSubset = subset.Contains(corpus, StringComparer.Ordinal);
-            try
-            {
-                ZD.DocumentAnalysis a;
-                using (var fs = File.OpenRead(pdf)) a = PdfAnalyzer.Analyze(fs);
-                if (a.Status != ZD.DocumentStatus.Processed || a.Form.HasXfa) return;
-                foreach (var pc in a.Pages)
-                {
-                    if (pc.Class != ZD.PageContentClass.TableOrComplexLayout) continue;
-                    if (pc.Signals.IsImageOnly || pc.Signals.OcrLayerPresent) continue;
-                    if (pc.Signals.RulingLineCount >= ruling) continue;       // only the pages the knob reclaims
-                    cands.Add(new Cand(pdf, corpus, pc.PageIndex, pc.Signals.RulingLineCount, inSubset));
-                }
-            }
-            catch { /* skip unreadable */ }
-        });
-
-        var all = cands.ToList();
+        var all = CollectReclaimedCandidates(pdfs, pdfDir, subset, ruling);
         Console.WriteLine($"Reclaimed-page population: {all.Count:N0} ({all.Count(c => c.InSubset):N0} in subset).");
         if (all.Count == 0) { Console.Error.WriteLine("No reclaimed candidates at this threshold."); return 1; }
 
@@ -219,28 +197,7 @@ internal static class TableReclaimParityRunner
 
         var pdfs = Directory.EnumerateFiles(pdfDir, "*.pdf", SearchOption.AllDirectories).ToList();
         Console.WriteLine($"Scanning {pdfs.Count:N0} PDFs for reclaimed pages (table-class, born-digital, ruling < {ruling})…");
-        var cands = new System.Collections.Concurrent.ConcurrentBag<Cand>();
-        Parallel.ForEach(pdfs, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, pdf =>
-        {
-            string rel = Path.GetRelativePath(pdfDir, pdf);
-            string corpus = rel.Split(Path.DirectorySeparatorChar, 2)[0];
-            bool inSubset = subset.Contains(corpus, StringComparer.Ordinal);
-            try
-            {
-                ZD.DocumentAnalysis a;
-                using (var fs = File.OpenRead(pdf)) a = PdfAnalyzer.Analyze(fs);
-                if (a.Status != ZD.DocumentStatus.Processed || a.Form.HasXfa) return;
-                foreach (var pc in a.Pages)
-                {
-                    if (pc.Class != ZD.PageContentClass.TableOrComplexLayout) continue;
-                    if (pc.Signals.IsImageOnly || pc.Signals.OcrLayerPresent) continue;
-                    if (pc.Signals.RulingLineCount >= ruling) continue;
-                    cands.Add(new Cand(pdf, corpus, pc.PageIndex, pc.Signals.RulingLineCount, inSubset));
-                }
-            }
-            catch { }
-        });
-        var all = cands.ToList();
+        var all = CollectReclaimedCandidates(pdfs, pdfDir, subset, ruling);
         if (all.Count == 0) { Console.Error.WriteLine("No reclaimed candidates."); return 1; }
         var union = Sample(all, sample, seed).Concat(Sample(all.Where(c => c.InSubset), subsetSample, seed))
             .GroupBy(c => (c.Pdf, c.PageIndex0)).Select(g => g.First()).ToList();
@@ -377,6 +334,41 @@ internal static class TableReclaimParityRunner
     }
 
     private static string Clip(string s, int n) => string.IsNullOrEmpty(s) ? "(empty)" : (s.Length <= n ? s : s[..n] + " …");
+
+    /// <summary>
+    /// Born-digital, non-XFA, table-class pages below the ruling threshold — the pages the reclaim knob
+    /// moves. A PDF the analyzer cannot open is skipped and counted, so a broken corpus is visible.
+    /// </summary>
+    private static List<Cand> CollectReclaimedCandidates(List<string> pdfs, string pdfDir, string[] subset, int ruling)
+    {
+        var cands = new System.Collections.Concurrent.ConcurrentBag<Cand>();
+        int unreadable = 0;
+        Parallel.ForEach(pdfs, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, pdf =>
+        {
+            string rel = Path.GetRelativePath(pdfDir, pdf);
+            string corpus = rel.Split(Path.DirectorySeparatorChar, 2)[0];
+            bool inSubset = subset.Contains(corpus, StringComparer.Ordinal);
+            try
+            {
+                ZD.DocumentAnalysis a;
+                using (var fs = File.OpenRead(pdf)) a = PdfAnalyzer.Analyze(fs);
+                if (a.Status != ZD.DocumentStatus.Processed || a.Form.HasXfa) return;
+                foreach (var pc in a.Pages)
+                {
+                    if (pc.Class != ZD.PageContentClass.TableOrComplexLayout) continue;
+                    if (pc.Signals.IsImageOnly || pc.Signals.OcrLayerPresent) continue;
+                    if (pc.Signals.RulingLineCount >= ruling) continue;       // only the pages the knob reclaims
+                    cands.Add(new Cand(pdf, corpus, pc.PageIndex, pc.Signals.RulingLineCount, inSubset));
+                }
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                Interlocked.Increment(ref unreadable);
+            }
+        });
+        if (unreadable > 0) Console.Error.WriteLine($"Skipped {unreadable:N0} unreadable PDF(s).");
+        return cands.ToList();
+    }
 
     private static List<Cand> Sample(IEnumerable<Cand> pool, int n, int seed)
     {

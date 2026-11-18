@@ -19,7 +19,7 @@ public static class ExtractionTools
         "documents can use extract_summary instead. The FIRST extraction after server start loads " +
         "the ONNX models (seconds when Foliant__ModelsDir is staged; otherwise a one-time ~330 MB " +
         "verified download).")]
-    public static string StartExtraction(
+    public static async Task<string> StartExtraction(
         ProcessorHolder holder,
         ExtractionRunRegistry registry,
         IOptions<FoliantMcpOptions> options,
@@ -32,22 +32,13 @@ public static class ExtractionTools
                      "IT hardware. Additive; a document with no hardware appends nothing. Default false.")]
         bool extractHardwareSpecs = false,
         [Description("Process at most this many pages; 0 uses the server's configured cap.")]
-        int maxPages = 0)
+        int maxPages = 0,
+        CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(path))
-            return Shape.Error($"File not found: {path}");
-
-        byte[] pdf;
-        int totalPages;
-        try
-        {
-            pdf = File.ReadAllBytes(path);
-            totalPages = Pdf.GetPageCount(pdf);
-        }
-        catch (Exception ex)
-        {
-            return Shape.Error($"Could not read PDF '{path}': {ex.Message}");
-        }
+        var input = await PdfInput.ReadAsync(path, cancellationToken).ConfigureAwait(false);
+        if (input.Error is not null) return input.Error;
+        byte[] pdf = input.Bytes;
+        int totalPages = input.TotalPages;
 
         // The guardrail lives in code, not in the prompt (ADR-0005 D6).
         int cap = Math.Max(1, options.Value.MaxPages);
@@ -79,6 +70,8 @@ public static class ExtractionTools
             }
             catch (Exception ex)
             {
+                // Top-level handler of a fire-and-forget run: every failure must land on the run
+                // record (else the run stays "running" forever and the exception goes unobserved).
                 run.MarkFailed(ex.Message);
             }
             finally
@@ -179,20 +172,10 @@ public static class ExtractionTools
         bool extractHardwareSpecs = false,
         CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(path))
-            return Shape.Error($"File not found: {path}");
-
-        byte[] pdf;
-        int totalPages;
-        try
-        {
-            pdf = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
-            totalPages = Pdf.GetPageCount(pdf);
-        }
-        catch (Exception ex)
-        {
-            return Shape.Error($"Could not read PDF '{path}': {ex.Message}");
-        }
+        var input = await PdfInput.ReadAsync(path, cancellationToken).ConfigureAwait(false);
+        if (input.Error is not null) return input.Error;
+        byte[] pdf = input.Bytes;
+        int totalPages = input.TotalPages;
 
         int limit = options.Value.SummarySyncPageLimit;
         if (totalPages > limit)

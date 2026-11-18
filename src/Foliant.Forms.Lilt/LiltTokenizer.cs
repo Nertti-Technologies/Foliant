@@ -74,10 +74,11 @@ public sealed class LiltTokenizer
         // but never double a space already present — this is exactly HF's behaviour.
         if (!text.StartsWith(' ')) text = " " + text;
 
+        var sb = new StringBuilder();
         foreach (Match m in Gpt2Split.Matches(text))
         {
             // Byte-level map: UTF-8 bytes of the piece -> GPT-2 byte-to-unicode chars (space -> 'Ġ').
-            var sb = new StringBuilder(m.Value.Length);
+            sb.Clear();
             foreach (byte b in Encoding.UTF8.GetBytes(m.Value)) sb.Append(ByteToChar[b]);
 
             foreach (string tok in BpeMerge(sb.ToString()))

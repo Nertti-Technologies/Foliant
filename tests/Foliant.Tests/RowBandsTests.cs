@@ -57,7 +57,7 @@ public sealed class RowBandsTests
         using (var canvas = new SKCanvas(bmp))
         using (var paint = new SKPaint { Color = SKColors.Black })
             for (int x = 0; x < 8; x++)                     // 8 noise px per gap row (< 5% of 200)
-                canvas.DrawRect(x * 25, 25, 1, 8, paint);
+                canvas.DrawRect(x * 25f, 25, 1, 8, paint);
         var bands = PaddleOcrEngine.RowBands(bmp);
 
         Assert.Equal(2, bands.Count);
