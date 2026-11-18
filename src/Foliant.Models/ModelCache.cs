@@ -30,6 +30,13 @@ public sealed class ModelCache
 
     public string CacheDirectory { get; }
 
+    private static bool IsPlainFileName(string? fileName) =>
+        !string.IsNullOrWhiteSpace(fileName)
+        && fileName is not ("." or "..")
+        && fileName.IndexOfAny(['/', '\\']) < 0
+        && Path.GetFileName(fileName) == fileName
+        && !Path.IsPathRooted(fileName);
+
     /// <summary>
     /// Returns the local path of <paramref name="asset"/>, downloading and verifying it first
     /// when not already cached.
@@ -38,6 +45,12 @@ public sealed class ModelCache
         ModelAsset asset, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(asset);
+        // The file name is joined onto the cache directory and the result may be written or deleted,
+        // so it must be a bare name: a rooted or "../" name would act outside the cache.
+        if (!IsPlainFileName(asset.FileName))
+            throw new ArgumentException(
+                $"Model asset '{asset.Id}' has an invalid file name; expected a bare file name with no directory part.",
+                nameof(asset));
         Directory.CreateDirectory(CacheDirectory);
 
         string path = Path.Combine(CacheDirectory, asset.FileName);
