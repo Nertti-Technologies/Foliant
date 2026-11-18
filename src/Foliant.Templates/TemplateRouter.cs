@@ -25,7 +25,7 @@ public sealed record PageRoute(int Page, TemplateMatch? Match, IReadOnlyList<For
 /// is per page, never per document. The matcher is conservative — bias to fallback; a false match is the only
 /// dangerous failure.
 /// </summary>
-public sealed class TemplateRouter : IPageTemplateRouter, IScannedFormRouter
+public sealed partial class TemplateRouter : IPageTemplateRouter, IScannedFormRouter
 {
     private readonly TemplateRegistry _registry;
     private readonly double _threshold;
@@ -96,9 +96,12 @@ public sealed class TemplateRouter : IPageTemplateRouter, IScannedFormRouter
     // "SF25A-23a" → "23", "SF18-95a" → "95". Null when the id carries no revision token ("1413", "SF_1410").
     private static string? TemplateRevisionYear(string templateId)
     {
-        var m = System.Text.RegularExpressions.Regex.Match(templateId ?? string.Empty, @"-(\d{2})");
+        var m = RevisionYearRx().Match(templateId ?? string.Empty);
         return m.Success ? m.Groups[1].Value : null;
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"-(\d{2})")]
+    private static partial System.Text.RegularExpressions.Regex RevisionYearRx();
 
     // Match a template whose id is "SF{designation}" up to a boundary: "30" → SF30-16c, "1449" → SF1449-21,
     // "25A" → SF25A-23a. The char after the number must not continue it (so "30" ≠ SF300...).

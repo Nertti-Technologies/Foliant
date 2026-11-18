@@ -153,6 +153,11 @@ internal sealed class MarkdownComposer
     /// scrambles meaning, so the caller renders it as flowing reading-order text instead.
     /// Conservative by design: real tables eject almost nothing and are never reclassified.
     /// </summary>
+    /// <remarks>
+    /// Source: validated (not tuned) in 1.0.2 on the 474-page reference forms corpus: word recall
+    /// held at 99.3% with no real table reclassified (RELEASE-NOTES-1.0.2.md). No sweep of other
+    /// values is recorded, so re-run the reference corpus before changing it.
+    /// </remarks>
     internal const double MaxUnassignedTextFractionForTable = 0.25;
 
     internal static bool TableGridFits(TableExtraction extraction, IReadOnlyList<TextLine> regionLines)
