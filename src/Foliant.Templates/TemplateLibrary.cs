@@ -59,8 +59,9 @@ public sealed class TemplateLibrary : IDisposable
     public IReadOnlyList<FormLayout> AllTemplates() => _registry.All();
 
     /// <summary>Serializes a layout to indented JSON for offline label review.</summary>
-    public static string ToJson(FormLayout layout) =>
-        JsonSerializer.Serialize(layout, new JsonSerializerOptions(TemplateRegistry.Json) { WriteIndented = true });
+    public static string ToJson(FormLayout layout) => JsonSerializer.Serialize(layout, IndentedJson);
+
+    private static readonly JsonSerializerOptions IndentedJson = new(TemplateRegistry.Json) { WriteIndented = true };
 
     /// <summary>Parses a reviewed layout JSON (e.g. produced by <see cref="ToJson"/>).</summary>
     public static FormLayout FromJson(string json) =>

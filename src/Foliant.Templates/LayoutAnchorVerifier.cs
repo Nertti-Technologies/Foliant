@@ -17,6 +17,8 @@ namespace Foliant.Templates;
 /// </summary>
 public static class LayoutAnchorVerifier
 {
+    private static readonly char[] WordSeparators = [' ', '—', '-', '/', '.', '(', ')', ',', ':', '\t'];
+
     public static bool IsLayoutMatch(
         PageImage image, IReadOnlyList<TextLine> lines, FormLayout template, int templatePage,
         float positionTolerance = 0.05f, double minAlignedFraction = 0.6, int minAnchors = 6)
@@ -59,7 +61,7 @@ public static class LayoutAnchorVerifier
     private static List<string> DistinctiveTokens(string? label) =>
         (label ?? string.Empty)
         .ToUpperInvariant()
-        .Split(new[] { ' ', '—', '-', '/', '.', '(', ')', ',', ':', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+        .Split(WordSeparators, StringSplitOptions.RemoveEmptyEntries)
         .Where(w => w.Length >= 4 && w.Any(char.IsLetter))
         .Distinct(StringComparer.Ordinal)
         .ToList();

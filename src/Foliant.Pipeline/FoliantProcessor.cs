@@ -41,6 +41,15 @@ public static class FoliantProcessor
     /// Creates the default pipeline from a directory of pre-downloaded models
     /// (see scripts/download-models.sh for file names).
     /// </summary>
+    /// <param name="modelsDirectory">Directory holding the ONNX models and dictionaries.</param>
+    /// <param name="tableBackend">Table-structure recogniser to wire.</param>
+    /// <param name="readingOrder">Reading-order algorithm to wire.</param>
+    /// <param name="formFields">Form-field extractor; null wires the AcroForm extractor.</param>
+    /// <param name="templateRouter">Optional router to known form templates; null disables template binding.</param>
+    /// <param name="recognitionModelPath">Override for the OCR recognition model; null uses the catalog default.</param>
+    /// <param name="recognitionDictPath">Override for the OCR recognition dictionary; null uses the catalog default.</param>
+    /// <param name="splitMergedOcrRows">Split OCR boxes that span several text rows before recognition.</param>
+    /// <param name="hardwareSpecs">Optional hardware-specification extractor; null disables it.</param>
     /// <param name="scanUpscaler">
     /// Upscaler used by the low-resolution RETRY ladder
     /// (<see cref="ProcessingOptions.RetryLowResolutionPages"/>, on by default) and by the
@@ -133,6 +142,8 @@ public static class FoliantProcessor
     /// Creates the default pipeline, downloading any missing models into the local cache
     /// (with SHA-256 verification) on first use.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068",
+        Justification = "Shipped public signature; moving the token last breaks positional callers.")]
     public static async Task<DocumentProcessor> CreateDefaultAsync(
         ModelCache? cache = null,
         IProgress<(string Id, double Fraction)>? downloadProgress = null,

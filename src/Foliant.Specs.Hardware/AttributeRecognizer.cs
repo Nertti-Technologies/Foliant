@@ -179,11 +179,11 @@ public static partial class AttributeRecognizer
         foreach (var t in texts)
         {
             if (string.IsNullOrWhiteSpace(t)) continue;
-            server += ServerVocabRx().Matches(t).Count;
-            workstation += WorkstationVocabRx().Matches(t).Count;
-            laptop += LaptopVocabRx().Matches(t).Count;
-            monitor += MonitorVocabRx().Matches(t).Count;
-            desktop += DesktopVocabRx().Matches(t).Count;
+            server += ServerVocabRx().Count(t);
+            workstation += WorkstationVocabRx().Count(t);
+            laptop += LaptopVocabRx().Count(t);
+            monitor += MonitorVocabRx().Count(t);
+            desktop += DesktopVocabRx().Count(t);
         }
 
         var scores = new (SystemKind Kind, int Score)[]

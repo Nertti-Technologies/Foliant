@@ -1,0 +1,22 @@
+root = true
+
+# Analyzer rules from AnalysisLevel=latest-recommended (Directory.Build.props) that are switched
+# off on purpose. Each entry says why; everything else is enforced as a build error.
+
+[*.cs]
+# Explicit default initializers on public options document the default at the declaration.
+dotnet_diagnostic.CA1805.severity = none
+# Parameters stay typed as the narrowest interface (IReadOnlyList etc.) to keep callers decoupled
+# from concrete collections; the devirtualization gain is negligible here.
+dotnet_diagnostic.CA1859.severity = none
+# Logging is limited to one-off startup and lifecycle messages, not hot paths.
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+
+[{tests,spike}/**.cs]
+# Test names use Method_Condition_Result underscores by convention.
+dotnet_diagnostic.CA1707.severity = none
+# Inline constant arrays keep test data next to the assertion that uses it.
+dotnet_diagnostic.CA1861.severity = none
+# Diagnostic tooling serializes a handful of files per run; cached options buy nothing.
+dotnet_diagnostic.CA1869.severity = none
