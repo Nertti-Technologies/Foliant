@@ -84,21 +84,13 @@ public static class VlmBaseline
         int targetW = Math.Max(PatchMultiple, (int)(w * scale) / PatchMultiple * PatchMultiple);
         int targetH = Math.Max(PatchMultiple, (int)(h * scale) / PatchMultiple * PatchMultiple);
 
-        SKBitmap toEncode = bitmap;
-        SKBitmap? resized = null;
-        if (targetW != w || targetH != h)
-        {
-            resized = bitmap.Resize(new SKImageInfo(targetW, targetH), SKFilterQuality.High)
-                      ?? throw new InvalidOperationException("normalize resize failed");
-            toEncode = resized;
-        }
+        using SKBitmap? resized = targetW == w && targetH == h
+            ? null
+            : bitmap.Resize(new SKImageInfo(targetW, targetH), new SKSamplingOptions(SKCubicResampler.Mitchell))
+              ?? throw new InvalidOperationException("normalize resize failed");
 
-        try
-        {
-            using var image = SKImage.FromBitmap(toEncode);
-            using var data = image.Encode(SKEncodedImageFormat.Png, 90);
-            return data.ToArray();
-        }
-        finally { resized?.Dispose(); }
+        using var image = SKImage.FromBitmap(resized ?? bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 90);
+        return data.ToArray();
     }
 }

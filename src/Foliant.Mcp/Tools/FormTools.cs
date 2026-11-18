@@ -28,20 +28,10 @@ public static class FormTools
         int? page = null,
         CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(path))
-            return Shape.Error($"File not found: {path}");
-
-        byte[] pdf;
-        int totalPages;
-        try
-        {
-            pdf = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
-            totalPages = Pdf.GetPageCount(pdf);
-        }
-        catch (Exception ex)
-        {
-            return Shape.Error($"Could not read PDF '{path}': {ex.Message}");
-        }
+        var input = await PdfInput.ReadAsync(path, cancellationToken).ConfigureAwait(false);
+        if (input.Error is not null) return input.Error;
+        byte[] pdf = input.Bytes;
+        int totalPages = input.TotalPages;
 
         if (page is int p && (p < 1 || p > totalPages))
             return Shape.Error($"Page {p} is out of range (document has {totalPages} pages).");
@@ -97,28 +87,19 @@ public static class FormTools
         "page template id, match score, and deterministic field count; unmatched pages are simply " +
         "absent. Useful to decide whether get_form_fields will yield template-bound (high-trust) " +
         "values.")]
-    public static string MatchTemplate(
+    public static async Task<string> MatchTemplate(
         TemplateRouterHolder templates,
         [Description("Absolute path to the PDF on the machine running this server.")] string path,
         [Description("1-based page to check. Omit to scan from page 1.")] int? page = null,
         [Description("When scanning the whole document, check at most this many pages from page 1. " +
                      "Default 25, hard cap 100.")]
-        int maxPagesToScan = 25)
+        int maxPagesToScan = 25,
+        CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(path))
-            return Shape.Error($"File not found: {path}");
-
-        byte[] pdf;
-        int totalPages;
-        try
-        {
-            pdf = File.ReadAllBytes(path);
-            totalPages = Pdf.GetPageCount(pdf);
-        }
-        catch (Exception ex)
-        {
-            return Shape.Error($"Could not read PDF '{path}': {ex.Message}");
-        }
+        var input = await PdfInput.ReadAsync(path, cancellationToken).ConfigureAwait(false);
+        if (input.Error is not null) return input.Error;
+        byte[] pdf = input.Bytes;
+        int totalPages = input.TotalPages;
 
         if (page is int p && (p < 1 || p > totalPages))
             return Shape.Error($"Page {p} is out of range (document has {totalPages} pages).");

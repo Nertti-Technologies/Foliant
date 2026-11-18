@@ -148,26 +148,10 @@ internal static class Gate3ScanPairsRunner
             { "doc,page,confidence,truth_name,got_value,want_value,similarity,got_len,want_len,pred_x1,pred_y1,pred_x2,pred_y2" };
 
         Score(truths, pages, floor: 0f, verbose: true, spuriousDump, crossFieldDump, missingDump, garbledDump);
-        if (dumpSpuriousPath is not null && spuriousDump is not null)
-        {
-            await File.WriteAllLinesAsync(dumpSpuriousPath, spuriousDump);
-            Console.WriteLine($"\nspurious dump: {spuriousDump.Count - 1} rows → {dumpSpuriousPath}");
-        }
-        if (dumpCrossFieldPath is not null && crossFieldDump is not null)
-        {
-            await File.WriteAllLinesAsync(dumpCrossFieldPath, crossFieldDump);
-            Console.WriteLine($"\ncross-field dump: {crossFieldDump.Count - 1} rows → {dumpCrossFieldPath}");
-        }
-        if (dumpMissingPath is not null && missingDump is not null)
-        {
-            await File.WriteAllLinesAsync(dumpMissingPath, missingDump);
-            Console.WriteLine($"\nmissing dump: {missingDump.Count - 1} rows → {dumpMissingPath}");
-        }
-        if (dumpGarbledPath is not null && garbledDump is not null)
-        {
-            await File.WriteAllLinesAsync(dumpGarbledPath, garbledDump);
-            Console.WriteLine($"\ngarbled dump: {garbledDump.Count - 1} rows → {dumpGarbledPath}");
-        }
+        await WriteDumpAsync("spurious", dumpSpuriousPath, spuriousDump);
+        await WriteDumpAsync("cross-field", dumpCrossFieldPath, crossFieldDump);
+        await WriteDumpAsync("missing", dumpMissingPath, missingDump);
+        await WriteDumpAsync("garbled", dumpGarbledPath, garbledDump);
         Console.WriteLine("\n──── CONFIDENCE-FLOOR SWEEP ────");
         Console.WriteLine($"{"floor",6} {"correct",8} {"cross-fld",9} {"trunc-src",9} {"garbled",8} {"wrong-oth",9} {"elsewhere",9} {"missing",8} {"spurious",9}");
         for (float floor = 0.50f; floor <= 0.951f; floor += 0.05f)
@@ -182,6 +166,13 @@ internal static class Gate3ScanPairsRunner
         Console.WriteLine("class confirmed in production scans) — unwinnable by extraction, target of the");
         Console.WriteLine("PossiblyTruncated honesty flag. Informational — no build fail.");
         return true;
+    }
+
+    private static async Task WriteDumpAsync(string label, string? path, List<string>? rows)
+    {
+        if (path is null || rows is null) return;
+        await File.WriteAllLinesAsync(path, rows);
+        Console.WriteLine($"\n{label} dump: {rows.Count - 1} rows → {path}");
     }
 
     private sealed record Tally(int Correct, int CrossField, int TruncatedSource, int Garbled, int WrongOther, int Elsewhere, int Missing, int Spurious);

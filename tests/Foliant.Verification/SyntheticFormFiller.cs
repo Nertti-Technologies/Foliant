@@ -73,7 +73,11 @@ internal static class SyntheticFormFiller
                         widgets.Add((nm, kind, ToPx(r.Left, r.Right, r.Top, r.Bottom, pageH, scale)));
                     }
                 }
-                catch { }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    // Malformed annotations: treat the page as having no fillable widgets, but say so.
+                    Console.Error.WriteLine($"  page {pageNo}: unreadable widget annotations ({ex.GetType().Name})");
+                }
                 if (widgets.Count == 0) continue;
 
                 // template's own text-layer tokens (the printed labels)

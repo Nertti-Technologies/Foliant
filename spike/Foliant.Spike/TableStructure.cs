@@ -48,7 +48,7 @@ public sealed class TableStructureExtractor : IDisposable
         float scale = (float)MaxEdge / Math.Max(cw, ch);
         int w = Math.Max(32, (int)(cw * scale)), h = Math.Max(32, (int)(ch * scale));
         using var resized = cropBmp.Resize(new SKImageInfo(w, h, SKColorType.Bgra8888, SKAlphaType.Opaque),
-                                           SKFilterQuality.Medium)
+                                           new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear))
                             ?? throw new InvalidOperationException("table resize failed");
 
         var tensor = new DenseTensor<float>(new[] { 1, 3, h, w });

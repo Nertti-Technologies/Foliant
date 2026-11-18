@@ -66,7 +66,7 @@ public sealed class PaddleOcrEngine : IDisposable
         int h = Math.Max(32, (int)Math.Round(origH * scale / 32) * 32);
 
         using var resized = page.Resize(new SKImageInfo(w, h, SKColorType.Bgra8888, SKAlphaType.Opaque),
-                                        SKFilterQuality.Medium)
+                                        new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear))
                             ?? throw new InvalidOperationException("resize failed");
 
         var tensor = new DenseTensor<float>(new[] { 1, 3, h, w });
@@ -117,7 +117,7 @@ public sealed class PaddleOcrEngine : IDisposable
             if (scoreSum / count < BoxScoreThreshold) continue;
 
             // DB unclip approximation: expand bbox by offset = area*ratio/perimeter
-            float offset = (float)(bw * bh) * UnclipRatio / (2 * (bw + bh));
+            float offset = (float)bw * bh * UnclipRatio / (2f * (bw + bh));
             float sx = (float)origW / w, sy = (float)origH / h;
 
             boxes.Add(new SKRect(
@@ -277,7 +277,7 @@ public sealed class PaddleOcrEngine : IDisposable
         int cropW = crop.Width, cropH = crop.Height;
         int recW = Math.Clamp((int)Math.Round(cropW * (float)_recHeight / cropH), 16, 4096);
         using var resized = crop.Resize(new SKImageInfo(recW, _recHeight, SKColorType.Bgra8888, SKAlphaType.Opaque),
-                                        SKFilterQuality.Medium)
+                                        new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear))
                             ?? throw new InvalidOperationException("rec resize failed");
 
         var tensor = new DenseTensor<float>(new[] { 1, 3, _recHeight, recW });

@@ -7,7 +7,7 @@ namespace Foliant.Tests;
 public sealed class FormIdentifierTests
 {
     private static TextLine[] Lines(params string[] texts) =>
-        texts.Select((t, i) => new TextLine(new BoundingBox(0, i * 10, 100, i * 10 + 8), t, 1f, TextSource.TextLayer))
+        texts.Select((t, i) => new TextLine(new BoundingBox(0, i * 10f, 100, i * 10f + 8), t, 1f, TextSource.TextLayer))
              .ToArray();
 
     [Theory]

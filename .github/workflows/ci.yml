@@ -18,6 +18,10 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege: both jobs only read the repository (artifact upload needs no token scope).
+permissions:
+  contents: read
+
 jobs:
   build-test:
     strategy:

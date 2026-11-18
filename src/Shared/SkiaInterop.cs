@@ -34,39 +34,29 @@ internal static class SkiaInterop
     /// <summary>Copies an <see cref="SKBitmap"/> into a <see cref="PageImage"/> (converting to BGRA8888 if needed).</summary>
     public static PageImage ToPageImage(SKBitmap bitmap, int dpi)
     {
-        SKBitmap source = bitmap;
-        SKBitmap? converted = null;
-        try
+        using SKBitmap? converted = bitmap.ColorType == SKColorType.Bgra8888
+            ? null
+            : bitmap.Copy(SKColorType.Bgra8888)
+              ?? throw new InvalidOperationException(
+                  $"Cannot convert bitmap from {bitmap.ColorType} to BGRA8888.");
+        SKBitmap source = converted ?? bitmap;
+
+        int width = source.Width, height = source.Height;
+        var buffer = new byte[width * height * 4];
+        nint src = source.GetPixels();
+        int srcRowBytes = source.RowBytes;
+        int dstRowBytes = width * 4;
+
+        if (srcRowBytes == dstRowBytes)
         {
-            if (bitmap.ColorType != SKColorType.Bgra8888)
-            {
-                converted = bitmap.Copy(SKColorType.Bgra8888)
-                    ?? throw new InvalidOperationException(
-                        $"Cannot convert bitmap from {bitmap.ColorType} to BGRA8888.");
-                source = converted;
-            }
-
-            int width = source.Width, height = source.Height;
-            var buffer = new byte[width * height * 4];
-            nint src = source.GetPixels();
-            int srcRowBytes = source.RowBytes;
-            int dstRowBytes = width * 4;
-
-            if (srcRowBytes == dstRowBytes)
-            {
-                Marshal.Copy(src, buffer, 0, buffer.Length);
-            }
-            else
-            {
-                for (int y = 0; y < height; y++)
-                    Marshal.Copy(src + (nint)y * srcRowBytes, buffer, y * dstRowBytes, dstRowBytes);
-            }
-
-            return new PageImage(width, height, dpi, buffer);
+            Marshal.Copy(src, buffer, 0, buffer.Length);
         }
-        finally
+        else
         {
-            converted?.Dispose();
+            for (int y = 0; y < height; y++)
+                Marshal.Copy(src + (nint)y * srcRowBytes, buffer, y * dstRowBytes, dstRowBytes);
         }
+
+        return new PageImage(width, height, dpi, buffer);
     }
 }

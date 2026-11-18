@@ -21,7 +21,9 @@ public sealed class ProcessorHolder : IDisposable
     private readonly ILogger<ProcessorHolder> _log;
     private readonly SemaphoreSlim _initLock = new(1, 1);
     private DocumentProcessor? _processor;   // owns the ONNX models; disposed in Dispose
-    private IDocumentProcessor? _engine;     // orchestrator wrapping _processor
+    // Orchestrator wrapping _processor. Volatile: GetAsync reads it outside the lock (double-checked
+    // init), so a reader on another core must never see the reference before the object it points to.
+    private volatile IDocumentProcessor? _engine;
     private volatile string _state = "not-loaded";
 
     public ProcessorHolder(
