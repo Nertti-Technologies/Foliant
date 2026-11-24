@@ -204,6 +204,8 @@ internal sealed class MarkdownComposer
 
         // No text loss: lines inside the region but outside the predicted grid, grouped into
         // visual rows so same-row fragments stay in left-to-right order.
+        // Layout contract: grid rows, then a blank line, then these lines. Foliant.DocumentExtraction's
+        // ExtractionDocumentMapper.LinesOutsideGrid parses it to recover them; keep the two in step.
         if (extraction.UnassignedLines.Count > 0)
         {
             if (sb.Length > 0) sb.AppendLine();

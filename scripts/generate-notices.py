@@ -125,7 +125,9 @@ def is_packable(project: Path) -> bool:
     """IsPackable defaults to true in src/Directory.Build.props; a project opts out with an
     unconditional <IsPackable>false</IsPackable>. Coupled to MSBuild's evaluated $(IsPackable),
     which the pack-time gate uses: a conditional IsPackable would make the two disagree, so it
-    is rejected (see the note in src/Directory.Build.props)."""
+    is rejected (see the note in src/Directory.Build.props). A property-valued IsPackable, such
+    as Foliant.DocumentExtraction's $(PackDocExt), is packed on some release lines only, so it
+    counts as packable: the notices then list more than one package ships, never less."""
     try:
         root = ElementTree.parse(project).getroot()
     except ElementTree.ParseError as error:

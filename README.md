@@ -90,6 +90,7 @@ verifiability as a feature:
 | [`Foliant.Models`](https://www.nuget.org/packages/Foliant.Models) | Model catalog + SHA-256-verified local cache |
 | [`Foliant.Templates`](https://www.nuget.org/packages/Foliant.Templates) | Template-aware extraction + bring-your-own-template library: register a blank form, route matching uploads to deterministic field/checkbox binding (else the default pipeline). 12 U.S. federal Standard Forms bundled. Also extracts **scanned/flattened** federal forms (no widgets) by their printed **designation + GSA revision** — generalizing across agencies of the same revision |
 | [`Foliant.Specs.Hardware`](https://www.nuget.org/packages/Foliant.Specs.Hardware) | Opt-in, deterministic **hardware-spec extraction** for federal solicitations — reads server/desktop/laptop/workstation/component specs (CPU, memory, storage, GPU, form factor, quantity, part number, warranty) and appends a generated summary section. Behind the `IHardwareSpecExtractor` seam |
+| [`Foliant.DocumentExtraction`](https://www.nuget.org/packages/Foliant.DocumentExtraction) (experimental preview) | Local provider for the `Microsoft.Extensions.DocumentExtraction` preview: returns Foliant's output as the shared `ExtractionDocument` model. Own `0.x-preview` release line; see [below](#microsoftextensionsdocumentextraction-provider-experimental) |
 | `Foliant.Mcp` (in-repo) | [MCP](https://modelcontextprotocol.io) server — drive the fully-local pipeline from any MCP client (Claude Desktop, Cursor, Copilot). Ships in the repo; run from source or the built DLL (not on NuGet — see below) |
 
 Model weights (~280 MB) are not inside the packages. They download on first use into the
@@ -193,6 +194,42 @@ npx @modelcontextprotocol/inspector --cli \
 
 Point the Inspector at the **built DLL**, not `dotnet run` — build chatter on stdout corrupts
 the stdio JSON-RPC stream.
+
+## Microsoft.Extensions.DocumentExtraction provider (experimental)
+
+`Foliant.DocumentExtraction` plugs Foliant into the .NET document-extraction preview
+(`Microsoft.Extensions.DocumentExtraction`), so code written against `DocumentExtractionClient`
+can extract PDFs locally, with no service and no network calls at extraction time.
+
+```csharp
+#pragma warning disable FOLIANT0001, MEDE0001, EXTEXP0019 // preview APIs
+using var client = await FoliantDocumentExtractionClient.CreateDefaultAsync();
+await using var pdf = File.OpenRead("report.pdf");
+var document = await client.ExtractAsync(pdf, "report.pdf", "application/pdf");
+
+// Foliant's review signals travel with the document: check them before indexing.
+var needsReview = (int[])document.Metadata["foliant.pagesNeedingReview"]!;
+var sensitive   = (int[])document.Metadata["foliant.sensitivityMarkedPages"]!;
+var noticed     = (int[])document.Metadata["foliant.pagesWithNotice"]!; // e.g. an unreadable XFA form
+```
+
+- One section per page, elements in Foliant's reading order; headings, captions, footnotes,
+  formulas, figures (with their text) and tables (cell grid with per-cell bounds).
+- Coordinates are in points from a top-left origin. Page headers and footers are kept, with the
+  roles `pageHeader` and `pageFooter`.
+- Document metadata: `foliant.pagesNeedingReview`, `foliant.sensitivityMarkedPages`,
+  `foliant.pagesWithNotice`, `foliant.coverageHolds`, `foliant.recallPercent`. Each page section's payload carries
+  `needsReview`, `textSource`, `recallPercent` and `notice`. The full `DocumentResult` is the
+  document's `RawRepresentation`.
+- Pages flagged for review, marked sensitive or carrying a notice are extracted, not withheld:
+  deciding what to index is the caller's call.
+- PDF only (`application/pdf`); inputs over `MaxInputBytes` (default 512 MiB) are rejected before
+  processing. Per-call `ProcessingOptions` go in `DocumentExtractionOptions.AdditionalProperties`
+  under `FoliantDocumentExtractionClient.ProcessingOptionsKey`; any other option is rejected.
+
+The upstream API is a preview and may change, so this package is versioned separately
+(`0.x.y-preview.N`) and is not covered by Foliant's 1.x compatibility promise
+(see [API-STABILITY.md](API-STABILITY.md)).
 
 ## Hardware-spec extraction (opt-in)
 

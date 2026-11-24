@@ -1,0 +1,7 @@
+Component: Microsoft.Extensions.AI abstractions (dotnet/extensions)
+Packages: Microsoft.Extensions.AI.Abstractions
+Declared: MIT
+Source: https://github.com/dotnet/extensions
+Version: 11.0.1
+Texts: LICENSE and THIRD-PARTY-NOTICES.TXT from https://github.com/dotnet/extensions/tree/v11.0.1, commit 1e8c914781cf8378f3bbb547bcb024518a2be74c, the commit the package names in its nuspec (the package does not include them)
+Retrieved: 2026-11-25

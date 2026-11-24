@@ -20,3 +20,16 @@ dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1861.severity = none
 # Diagnostic tooling serializes a handful of files per run; cached options buy nothing.
 dotnet_diagnostic.CA1869.severity = none
+
+[src/Foliant.DocumentExtraction/**.cs]
+# The Microsoft document-extraction types are marked for evaluation (EXTEXP0019, MEDE0001). Using them is
+# the purpose of this package; its own public API is [Experimental("FOLIANT0001")] in turn, so callers
+# still opt in. See ADR-0009 §3.6.
+dotnet_diagnostic.EXTEXP0019.severity = none
+dotnet_diagnostic.MEDE0001.severity = none
+
+[tests/Foliant.DocumentExtraction.Tests/**.cs]
+# The adapter tests exercise those experimental APIs on purpose.
+dotnet_diagnostic.EXTEXP0019.severity = none
+dotnet_diagnostic.MEDE0001.severity = none
+dotnet_diagnostic.FOLIANT0001.severity = none
