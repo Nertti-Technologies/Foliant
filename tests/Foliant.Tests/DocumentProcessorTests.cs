@@ -411,6 +411,8 @@ public class DocumentProcessorTests
         Assert.Equal(2.0f, upscaler.LastFactor);
         // Downstream dimensions reflect the upscaled raster (FakeRenderer renders 100×100 → 200×200).
         Assert.All(result.Pages, p => Assert.Equal(200, p.WidthPx));
+        // Dpi describes that raster, so WidthPx / Dpi is still the page width in inches.
+        Assert.All(result.Pages, p => Assert.Equal(2 * ProcessingOptions.Default.Dpi, p.Dpi));
         // The advisory fields still describe the ORIGINAL source scan, not the upscale.
         Assert.All(result.Pages, p => Assert.Equal(120, p.EffectiveDpi));
         Assert.All(result.Pages, p => Assert.True(p.LowResolution));

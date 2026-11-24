@@ -300,7 +300,9 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
             if (lowResolution && options.UpscaleLowResolutionScans
                 && _upscaler is not null && options.LowResolutionUpscaleFactor > 1f)
             {
+                var original = image;
                 image = _upscaler.Upscale(image, options.LowResolutionUpscaleFactor);
+                renderDpi = ScaledDpi(renderDpi, original, image);
             }
 
             if (options.DetectOrientation)
@@ -336,12 +338,13 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
                 // Rung 1: upscale the raster we already have with the wired IScanUpscaler.
                 if (_upscaler is not null && options.LowResolutionUpscaleFactor > 1f)
                 {
-                    var candidate = RunPixelStages(
-                        _upscaler.Upscale(baseRaster, options.LowResolutionUpscaleFactor));
+                    var upscaled = _upscaler.Upscale(baseRaster, options.LowResolutionUpscaleFactor);
+                    var candidate = RunPixelStages(upscaled);
                     int words = CountWords(candidate.Lines, minConf);
                     if (words > bestWords)
                     {
                         (best, bestWords) = (candidate, words);
+                        renderDpi = ScaledDpi(renderDpi, baseRaster, upscaled);
                         recoveredVia = $"{options.LowResolutionUpscaleFactor:0.#}× upscale retry";
                     }
                 }
@@ -362,16 +365,21 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
                     // (options.Dpi > 300). An uncapped re-render already doubled the pixel budget;
                     // stacking another upscale on top of it buys nothing and — with a 4×-native SR
                     // backend — explodes the intermediate buffer past the array limit.
+                    int candidateDpi = retryDpi;
                     if (retryDpi < 2 * options.Dpi
                         && _upscaler is not null && options.LowResolutionUpscaleFactor > 1f)
-                        rerendered = _upscaler.Upscale(rerendered, options.LowResolutionUpscaleFactor);
+                    {
+                        var upscaled = _upscaler.Upscale(rerendered, options.LowResolutionUpscaleFactor);
+                        candidateDpi = ScaledDpi(retryDpi, rerendered, upscaled);
+                        rerendered = upscaled;
+                    }
 
                     var candidate = RunPixelStages(rerendered);
                     int words = CountWords(candidate.Lines, minConf);
                     if (words > bestWords)
                     {
                         (best, bestWords) = (candidate, words);
-                        renderDpi = retryDpi;   // line/region geometry lives in this raster's space
+                        renderDpi = candidateDpi;   // line/region geometry lives in this raster's space
                         recoveredVia = $"re-render at {retryDpi} DPI retry";
                     }
                 }
@@ -521,6 +529,14 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
             NeedsReview: needsReview,
             SensitivityMarking: sensitivityMarking);
     }
+
+    /// <summary>
+    /// The DPI a resized raster represents: <see cref="PageResult.Dpi"/> must describe the raster the
+    /// page's geometry lives in (WidthPx at Dpi), while upscalers keep the nominal
+    /// <see cref="PageImage.Dpi"/> of their input. Same orientation before and after, so widths compare.
+    /// </summary>
+    private static int ScaledDpi(int dpi, PageImage before, PageImage after) =>
+        before.Width == after.Width ? dpi : (int)Math.Round(dpi * (double)after.Width / before.Width);
 
     private static int CountWords(IReadOnlyList<TextLine> lines, float minConfidence = 0f) =>
         lines.Where(l => l.Confidence >= minConfidence)

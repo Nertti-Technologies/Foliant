@@ -25,7 +25,8 @@ public sealed record PageVerification(
 /// <param name="PageNumber">1-based page number.</param>
 /// <param name="WidthPx">Rendered page width in pixels at <paramref name="Dpi"/>.</param>
 /// <param name="HeightPx">Rendered page height in pixels at <paramref name="Dpi"/>.</param>
-/// <param name="Dpi">Resolution the page was processed at.</param>
+/// <param name="Dpi">Resolution of the raster the page's geometry lives in: the render DPI, scaled
+/// by any upscale that was kept, so <paramref name="WidthPx"/> / Dpi is the page width in inches.</param>
 /// <param name="Regions">Output regions in reading order.</param>
 /// <param name="Lines">All extracted text lines (the coverage-invariant source of truth).</param>
 /// <param name="PageFurniture">Headers/footers/page numbers, kept as metadata rather than dropped.</param>
