@@ -1,0 +1,7 @@
+Component: PdfPig
+Packages: PdfPig
+Declared: Apache-2.0
+Source: https://github.com/UglyToad/PdfPig
+Version: 0.1.14
+Texts: LICENSE from https://github.com/UglyToad/PdfPig/tree/v0.1.14 (no NOTICE file at that tag). PdfPig embeds Adobe data as resources: the Core 14 font metrics (AFM), the Adobe Glyph List and the ZapfDingbats glyph list. Their notices (NOTICE-adobe-*.txt) are taken from the resource files at that tag; the AFM licence paragraph is from the Core 14 AFM ReadMe as redistributed at https://github.com/apache/pdfbox/blob/trunk/pdfbox/src/main/resources/org/apache/pdfbox/resources/afm/MustRead.html
+Retrieved: 2026-11-25

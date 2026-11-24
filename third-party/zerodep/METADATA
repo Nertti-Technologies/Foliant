@@ -1,0 +1,7 @@
+Component: ZeroDep (same publisher as Foliant)
+Packages: ZeroDep, ZeroDep.*
+Declared: Apache-2.0
+Source: https://github.com/Nertti-Technologies/ZeroDep
+Version: 2.2.0
+Texts: LICENSE from https://github.com/Nertti-Technologies/ZeroDep/tree/v2.2.0 (the packages declare the licence but do not ship its text); THIRD-PARTY-NOTICES.txt as shipped inside the ZeroDep package
+Retrieved: 2026-11-25

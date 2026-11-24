@@ -1,0 +1,7 @@
+Component: SQLitePCLRaw
+Packages: SQLitePCLRaw.bundle_e_sqlite3, SQLitePCLRaw.core, SQLitePCLRaw.provider.e_sqlite3
+Declared: Apache-2.0
+Source: https://github.com/ericsink/SQLitePCL.raw
+Version: 2.1.11
+Texts: LICENSE.TXT from https://github.com/ericsink/SQLitePCL.raw/tree/v2.1.11
+Retrieved: 2026-11-25

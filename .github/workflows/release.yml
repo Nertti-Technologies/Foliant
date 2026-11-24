@@ -70,6 +70,11 @@ jobs:
       - name: Build
         run: dotnet build Foliant.sln -c Release
 
+      # Same gate as ci.yml: never publish packages whose THIRD-PARTY-NOTICES.txt is stale.
+      # (The pack target in src/Directory.Build.props checks it again.)
+      - name: Third-party notices are up to date
+        run: python3 scripts/generate-notices.py --check
+
       - name: Test
         run: dotnet test Foliant.sln -c Release --no-build
 

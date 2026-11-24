@@ -1,0 +1,9 @@
+Component: ONNX Runtime
+Packages: Microsoft.ML.OnnxRuntime, Microsoft.ML.OnnxRuntime.Managed
+Declared: file
+Copyleft-review: owner 2026-11-25: Eigen (MPL-2.0) is compiled in unmodified; its source is at https://gitlab.com/libeigen/eigen. The LGPL sentence is the standard Microsoft clause permitting reverse engineering to debug LGPL libraries. Other GPL mentions are dual-licence or exception clauses with a permissive option.
+Approved: owner 2026-11-25: the declared licence file (LICENSE) is the MIT licence
+Source: https://github.com/microsoft/onnxruntime
+Version: 1.27.0
+Source-offer: Eigen (Mozilla Public License 2.0) is compiled into ONNX Runtime unmodified; its source code is available at https://gitlab.com/libeigen/eigen
+Texts: LICENSE and ThirdPartyNotices.txt as shipped inside each package

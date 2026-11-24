@@ -1,0 +1,7 @@
+Component: Microsoft.Data.Sqlite (dotnet/efcore)
+Packages: Microsoft.Data.Sqlite, Microsoft.Data.Sqlite.Core
+Declared: MIT
+Source: https://github.com/dotnet/efcore
+Version: 10.0.9
+Texts: LICENSE.txt from https://github.com/dotnet/efcore/tree/v10.0.9 (no third-party notices file at that tag)
+Retrieved: 2026-11-25

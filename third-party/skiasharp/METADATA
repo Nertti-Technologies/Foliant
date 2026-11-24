@@ -1,0 +1,8 @@
+Component: SkiaSharp (managed and native Skia)
+Packages: SkiaSharp, SkiaSharp.NativeAssets.*
+Declared: MIT
+Copyleft-review: owner 2026-11-25: the GIF decoder is Mozilla-origin code under MPL-1.1/GPL-2.0/LGPL-2.1, used under MPL-1.1, unmodified; its source is at https://skia.googlesource.com/skia (third_party). libmicrohttpd (LGPL) is listed but not compiled into the native libraries (no symbols in any of the 18 builds). FreeType is used under the FTL.
+Source: https://github.com/mono/SkiaSharp
+Version: 3.119.4
+Source-offer: The GIF decoder (Mozilla Public License 1.1) is compiled into the native Skia libraries unmodified; its source code is available at https://skia.googlesource.com/skia (third_party directory)
+Texts: LICENSE.txt and THIRD-PARTY-NOTICES.txt as shipped inside each package

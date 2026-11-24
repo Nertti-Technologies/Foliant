@@ -434,6 +434,8 @@ FodyWeavers.xsd
 Test-Data*/
 # ONNX model weights (downloaded via scripts/download-models.sh / Foliant.Models cache)
 models/
+# ...but third-party/models/ holds licence METADATA for those models (scripts/generate-notices.py)
+!third-party/models/
 # Pipeline output artifacts (extracted .md/.json/.png derived from corpus PDFs)
 spike-out/
 verification-out*/
