@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `ProcessingOptions.MaxPagePixels` (default 100 million) bounds every page raster. A page too large
+  for `Dpi` renders at the highest DPI that fits (reported in `PageResult.Dpi`, with a `Notice`; an
+  OCR-routed page below half the requested DPI is also flagged `NeedsReview`), and an upscale that
+  would exceed it is skipped. `IPageRenderer.GetPageSize` (default: unknown, so not capped) supplies
+  the page size.
+
 ## 1.9.0 — 2026-11-25 (third-party notices, DPI and form-field fixes)
 
 Minor. Adds the shipped notices file and corrects the DPI reported for upscaled pages, which changes

@@ -25,6 +25,18 @@ public sealed record ProcessingOptions
     public int Dpi { get; init; } = 300;
 
     /// <summary>
+    /// Largest page raster, in pixels, any stage may produce (render, retry re-render, upscale).
+    /// A page whose render at <see cref="Dpi"/> would exceed it is rendered at the highest DPI that
+    /// fits, and <see cref="PageResult.Dpi"/> reports that DPI; an upscale that would exceed it is
+    /// skipped. An OCR-routed page rendered below half of <see cref="Dpi"/> is flagged
+    /// <see cref="PageResult.NeedsReview"/> with a <see cref="PageResult.Notice"/>. Bounds a hostile
+    /// page size: one BGRA copy is at most 4 bytes per pixel (400 MB at the default). Default
+    /// 100 million, an estimate: it leaves Letter and A4 untouched up to 600 DPI and A0 at about
+    /// 250 DPI. Range 1 million to 1,000 million.
+    /// </summary>
+    public long MaxPagePixels { get; init; } = 100_000_000;
+
+    /// <summary>
     /// Effective source resolution (DPI) below which an OCR-routed (scanned) page is flagged
     /// <see cref="PageResult.LowResolution"/>. The effective DPI is the native pixel size of the
     /// page's dominant scan image relative to its physical size on the page — not the render

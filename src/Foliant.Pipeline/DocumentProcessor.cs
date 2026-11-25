@@ -101,8 +101,10 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
         byte[] pdf, ProcessingOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(pdf);
-        return Task.Run(() => Process(pdf, options ?? ProcessingOptions.Default, cancellationToken),
-                        cancellationToken);
+        options ??= ProcessingOptions.Default;
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxPagePixels, 1_000_000L, nameof(options));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.MaxPagePixels, 1_000_000_000L, nameof(options));
+        return Task.Run(() => Process(pdf, options, cancellationToken), cancellationToken);
     }
 
     public async Task<DocumentResult> ProcessAsync(
@@ -206,7 +208,10 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
     {
         var sw = Stopwatch.StartNew();
 
-        var image = _renderer.Render(pdf, pageNumber, options.Dpi);
+        // Render within MaxPagePixels: a page too large for options.Dpi renders at the highest DPI that fits.
+        var pageSize = _renderer.GetPageSize(pdf, pageNumber);
+        int pageDpi = CappedDpi(options.Dpi, pageSize, options.MaxPagePixels);
+        var image = _renderer.Render(pdf, pageNumber, pageDpi);
 
         // Optional caller/test transform on the raw raster (external preprocessing, or
         // synthetic degradation for Gate 7). Runs before the text-layer decision and OCR.
@@ -304,7 +309,8 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
             // EffectiveDpi/LowResolution still describe the original source scan, not the upscale.
             // (Always-on path, off by default per the Gate 8 verdict — distinct from the retry below.)
             if (lowResolution && options.UpscaleLowResolutionScans
-                && _upscaler is not null && options.LowResolutionUpscaleFactor > 1f)
+                && _upscaler is not null && options.LowResolutionUpscaleFactor > 1f
+                && FitsPixelCap(image, options))
             {
                 var original = image;
                 image = _upscaler.Upscale(image, options.LowResolutionUpscaleFactor);
@@ -342,7 +348,8 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
                 retried = true;
 
                 // Rung 1: upscale the raster we already have with the wired IScanUpscaler.
-                if (_upscaler is not null && options.LowResolutionUpscaleFactor > 1f)
+                if (_upscaler is not null && options.LowResolutionUpscaleFactor > 1f
+                    && FitsPixelCap(baseRaster, options))
                 {
                     var upscaled = _upscaler.Upscale(baseRaster, options.LowResolutionUpscaleFactor);
                     var candidate = RunPixelStages(upscaled);
@@ -359,8 +366,8 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
                 // the threshold. The caller/test ImageTransform and any orientation correction are
                 // re-applied so the re-render faces the same conditions as the first pass
                 // (Gate 7/8 degradations live in the transform!).
-                int retryDpi = Math.Min(2 * options.Dpi, 600);
-                if (bestWords < options.LowResolutionRetryMinWords && retryDpi > options.Dpi)
+                int retryDpi = CappedDpi(Math.Min(2 * options.Dpi, 600), pageSize, options.MaxPagePixels);
+                if (bestWords < options.LowResolutionRetryMinWords && retryDpi > pageDpi)
                 {
                     var rerendered = _renderer.Render(pdf, pageNumber, retryDpi);
                     if (options.ImageTransform is { } retryTransform)
@@ -373,7 +380,8 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
                     // backend — explodes the intermediate buffer past the array limit.
                     int candidateDpi = rerendered.Dpi;   // as transformed, like rasterDpi on the first pass
                     if (retryDpi < 2 * options.Dpi
-                        && _upscaler is not null && options.LowResolutionUpscaleFactor > 1f)
+                        && _upscaler is not null && options.LowResolutionUpscaleFactor > 1f
+                        && FitsPixelCap(rerendered, options))
                     {
                         var upscaled = _upscaler.Upscale(rerendered, options.LowResolutionUpscaleFactor);
                         candidateDpi = ScaledDpi(candidateDpi, rerendered, upscaled);
@@ -516,6 +524,19 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
             }
         }
 
+        // A page too large for MaxPagePixels at options.Dpi was rendered lower. On the OCR path a DPI
+        // below half the requested one is a real risk to small text, so the page is flagged; on the
+        // text-layer path the characters come from the PDF and the note is informational.
+        if (pageDpi < options.Dpi)
+        {
+            bool severe = !useLayer && pageDpi * 2 < options.Dpi;
+            needsReview |= severe;
+            string capNotice = $"Page rendered at {pageDpi} DPI instead of {options.Dpi} to stay within " +
+                               $"MaxPagePixels ({options.MaxPagePixels:N0})" +
+                               (severe ? " — small text may be lost; page needs manual review." : ".");
+            pageNotice = pageNotice is null ? capNotice : pageNotice + " " + capNotice;
+        }
+
         // ── Sensitivity markings (advisory; CUI / legacy / classification banners) ──
         string? sensitivityMarking = options.DetectSensitivityMarkings
             ? SensitivityMarkingDetector.Detect(lines, composed.PageFurniture, image.Height)
@@ -535,6 +556,27 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
             FormFields: formFields,
             NeedsReview: needsReview,
             SensitivityMarking: sensitivityMarking);
+    }
+
+    /// <summary>
+    /// The highest DPI, at most <paramref name="dpi"/>, at which a page of <paramref name="pageSize"/>
+    /// points renders within <paramref name="maxPixels"/>: pixels = (w x dpi / 72) x (h x dpi / 72).
+    /// An unknown or degenerate size is not capped (the renderer then decides).
+    /// </summary>
+    internal static int CappedDpi(int dpi, (double Width, double Height)? pageSize, long maxPixels)
+    {
+        if (pageSize is not { } size || !(size.Width > 0) || !(size.Height > 0)
+            || double.IsInfinity(size.Width) || double.IsInfinity(size.Height))
+            return dpi;
+        double fit = Math.Floor(72.0 * Math.Sqrt(maxPixels / (size.Width * size.Height)));
+        return fit >= dpi ? dpi : (int)Math.Max(1, fit);
+    }
+
+    // Whether upscaling this raster by the configured factor stays within MaxPagePixels.
+    private static bool FitsPixelCap(PageImage image, ProcessingOptions options)
+    {
+        double f = options.LowResolutionUpscaleFactor;
+        return (double)image.Width * image.Height * f * f <= options.MaxPagePixels;
     }
 
     /// <summary>

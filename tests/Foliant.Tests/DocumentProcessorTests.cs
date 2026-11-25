@@ -10,9 +10,18 @@ public class DocumentProcessorTests
     private sealed class FakeRenderer : IPageRenderer
     {
         public int PageCount { get; init; } = 2;
+        /// <summary>When set, reported as the page size and used to size the raster at the render DPI.</summary>
+        public (double Width, double Height)? PageSize { get; init; }
+        public List<int> RenderDpis { get; } = new();
         public int GetPageCount(byte[] pdf) => PageCount;
-        public PageImage Render(byte[] pdf, int pageNumber, int dpi) =>
-            new(100, 100, dpi, new byte[100 * 100 * 4]);
+        public (double Width, double Height)? GetPageSize(byte[] pdf, int pageNumber) => PageSize;
+        public PageImage Render(byte[] pdf, int pageNumber, int dpi)
+        {
+            lock (RenderDpis) RenderDpis.Add(dpi);
+            int w = PageSize is { } s ? (int)Math.Round(s.Width * dpi / 72) : 100;
+            int h = PageSize is { } t ? (int)Math.Round(t.Height * dpi / 72) : 100;
+            return new(w, h, dpi, new byte[w * h * 4]);
+        }
     }
 
     private sealed class FakeLayout : ILayoutDetector
@@ -552,6 +561,101 @@ public class DocumentProcessorTests
             return _inner.Read(pdf, pageNumber, dpi);
         }
     }
+
+    // ── MaxPagePixels (ADR-0010 T3) ─────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(612, 792, 300, 100_000_000L, 300)]     // Letter at 300 DPI: 8.4 M px, untouched
+    [InlineData(612, 792, 600, 100_000_000L, 600)]     // Letter at 600 DPI: 33.7 M px, untouched
+    [InlineData(14400, 14400, 300, 100_000_000L, 50)]  // PDF maximum page: 72 x sqrt(1e8 / 14400^2) = 50
+    [InlineData(1440, 1440, 300, 1_000_000L, 50)]
+    public void CappedDpi_KeepsTheRasterWithinTheCap(double w, double h, int dpi, long cap, int expected)
+    {
+        int capped = DocumentProcessor.CappedDpi(dpi, (w, h), cap);
+        Assert.Equal(expected, capped);
+        Assert.True(w * capped / 72 * (h * capped / 72) <= cap);
+    }
+
+    [Theory]
+    [InlineData(double.NaN, 100.0)]
+    [InlineData(0.0, 100.0)]
+    [InlineData(double.PositiveInfinity, 100.0)]
+    public void CappedDpi_LeavesAnUnknownOrDegenerateSizeUncapped(double w, double h) =>
+        Assert.Equal(300, DocumentProcessor.CappedDpi(300, (w, h), 1_000_000));
+
+    [Fact]
+    public async Task OversizedScannedPage_RendersAtTheCappedDpi_AndIsFlagged()
+    {
+        var renderer = new FakeRenderer { PageCount = 1, PageSize = (1440, 1440) };
+        using var processor = new DocumentProcessor(renderer, new FakeLayout(), new FakeOcr(),
+            new FakeTables(), new XyCutReadingOrder(), new FakeTextLayer { WordCount = 0 });
+
+        var result = await processor.ProcessAsync(FakePdf, new ProcessingOptions
+        {
+            Verify = false,
+            DetectOrientation = false,
+            MaxPagePixels = 1_000_000,
+        });
+
+        var page = Assert.Single(result.Pages);
+        Assert.Equal([50], renderer.RenderDpis);
+        Assert.Equal(50, page.Dpi);
+        Assert.True(page.NeedsReview);                       // 50 < half of 300 on the OCR path
+        Assert.Contains("MaxPagePixels", page.Notice);
+    }
+
+    [Fact]
+    public async Task OversizedTextLayerPage_GetsAnInformationalNotice_NotAReviewFlag()
+    {
+        var renderer = new FakeRenderer { PageCount = 1, PageSize = (1440, 1440) };
+        using var processor = new DocumentProcessor(renderer, new FakeLayout(), new FakeOcr(),
+            new FakeTables(), new XyCutReadingOrder(), new FakeTextLayer { WordCount = 50 });
+
+        var page = Assert.Single((await processor.ProcessAsync(
+            FakePdf, new ProcessingOptions { Verify = false, MaxPagePixels = 1_000_000 })).Pages);
+
+        Assert.False(page.NeedsReview);
+        Assert.Contains("rendered at 50 DPI instead of 300", page.Notice);
+    }
+
+    [Fact]
+    public async Task Upscale_IsSkipped_WhenItWouldExceedTheCap()
+    {
+        // 1000 x 1000 pt at 72 DPI is exactly 1 M px; a 2x upscale would be 4 M px.
+        var upscaler = new FakeUpscaler();
+        using var processor = new DocumentProcessor(
+            new FakeRenderer { PageCount = 1, PageSize = (1000, 1000) }, new FakeLayout(), new FakeOcr(),
+            new FakeTables(), new XyCutReadingOrder(), new FakeTextLayer { WordCount = 0 },
+            scanResolution: new FakeScanResolution { Dpi = 40 }, scanUpscaler: upscaler);
+
+        var page = Assert.Single((await processor.ProcessAsync(FakePdf, new ProcessingOptions
+        {
+            Dpi = 72,
+            Verify = false,
+            DetectOrientation = false,
+            UpscaleLowResolutionScans = true,
+            LowResolutionUpscaleFactor = 2.0f,
+            MaxPagePixels = 1_000_000,
+        })).Pages);
+
+        Assert.Equal(0, upscaler.Calls);
+        Assert.Equal(72, page.Dpi);
+        Assert.Null(page.Notice);                            // the render itself was not capped
+    }
+
+    [Theory]
+    [InlineData(999_999L)]
+    [InlineData(1_000_000_001L)]
+    public async Task MaxPagePixels_OutOfRange_IsRejected(long cap)
+    {
+        using var processor = NewProcessor(new FakeOcr(), new FakeTextLayer());
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            processor.ProcessAsync(FakePdf, new ProcessingOptions { MaxPagePixels = cap }));
+    }
+
+    [Fact]
+    public void PdfPageRenderer_ReportsThePageSizeInPoints() =>
+        Assert.Equal((100.0, 100.0), new PdfPageRenderer().GetPageSize(FilledFormPdf.Build(), 1));
 
     [Fact]
     public async Task FormFields_Null_WhenOptionOff()

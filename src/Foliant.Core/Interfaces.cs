@@ -19,6 +19,15 @@ public interface IPageRenderer
     /// <param name="pageNumber">1-based page number.</param>
     /// <param name="dpi">Render resolution in dots per inch.</param>
     PageImage Render(byte[] pdf, int pageNumber, int dpi);
+
+    /// <summary>
+    /// The page's size in PDF points (1/72 inch) as it renders, or null when unknown. The pipeline
+    /// uses it to keep the raster within <see cref="ProcessingOptions.MaxPagePixels"/>; a renderer
+    /// that returns null is not capped.
+    /// </summary>
+    /// <param name="pdf">The PDF file contents.</param>
+    /// <param name="pageNumber">1-based page number.</param>
+    (double Width, double Height)? GetPageSize(byte[] pdf, int pageNumber) => null;
 }
 
 /// <summary>Stage 2 — classifies page regions (text, title, table, figure, furniture, ...).</summary>
