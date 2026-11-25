@@ -117,10 +117,12 @@ public class DocumentProcessorTests
     private sealed class FakeFormFields : IFormFieldExtractor
     {
         public int Calls;
+        public PageImage? LastImage;
         public IReadOnlyList<FormField> Extract(
             byte[] pdf, int pageNumber, PageImage image, IReadOnlyList<TextLine> lines)
         {
             Calls++;
+            LastImage = image;
             return new[] { new FormField("solicitation_number", "ABC123-25-R-00001", FieldKind.Text) };
         }
     }
@@ -464,6 +466,7 @@ public class DocumentProcessorTests
             FakePdf, new ProcessingOptions { Verify = false, ExtractFormFields = true });
 
         Assert.Equal(2, extractor.Calls);   // one per page
+        Assert.Equal(ProcessingOptions.Default.Dpi, extractor.LastImage!.Dpi);   // not upscaled: unchanged
         Assert.All(result.Pages, p =>
         {
             Assert.NotNull(p.FormFields);
@@ -472,6 +475,82 @@ public class DocumentProcessorTests
             Assert.Equal("ABC123-25-R-00001", f.Value);
             Assert.Equal(FieldKind.Text, f.Kind);
         });
+    }
+
+    [Fact]
+    public async Task FormFields_OnUpscaledPage_GetTheUpscaledRastersDpi()
+    {
+        // The upscaler keeps the nominal Dpi; the extractor maps PDF points to pixels with it.
+        var extractor = new FakeFormFields();
+        using var processor = new DocumentProcessor(new FakeRenderer(), new FakeLayout(), new FakeOcr(),
+            new FakeTables(), new XyCutReadingOrder(), new FakeTextLayer { WordCount = 0 },
+            formFields: extractor, scanResolution: new FakeScanResolution { Dpi = 120 },
+            scanUpscaler: new FakeUpscaler());
+
+        await processor.ProcessAsync(FakePdf, new ProcessingOptions
+        {
+            Verify = false,
+            DetectOrientation = false,
+            UpscaleLowResolutionScans = true,
+            LowResolutionUpscaleFactor = 2.0f,
+            ExtractFormFields = true,
+        });
+
+        Assert.Equal(200, extractor.LastImage!.Width);
+        Assert.Equal(2 * ProcessingOptions.Default.Dpi, extractor.LastImage.Dpi);
+    }
+
+    [Fact]
+    public async Task FormFields_NotExtracted_OnATemplateRoutedPage()
+    {
+        var extractor = new FakeFormFields();
+        using var processor = new DocumentProcessor(new FakeRenderer(), new FakeLayout(), new FakeOcr(),
+            new FakeTables(), new XyCutReadingOrder(), new FakeTextLayer { WordCount = 50 },
+            formFields: extractor, templateRouter: new FakeTemplateRouter());
+
+        var result = await processor.ProcessAsync(FakePdf, new ProcessingOptions
+        {
+            Verify = false,
+            ExtractFormFields = true,
+            UseTemplateRouting = true,
+        });
+
+        Assert.Equal(1, extractor.Calls);   // page 2 only: page 1 matched the template
+        Assert.Equal("12121212", result.Pages[0].FormFields![0].Value);
+    }
+
+    [Fact]
+    public async Task ResizingImageTransform_SetsTheDpiOfGeometryAndTextLayer()
+    {
+        var textLayer = new DpiRecordingTextLayer();
+        using var processor = NewProcessor(new FakeOcr(), textLayer);
+
+        var result = await processor.ProcessAsync(FakePdf, new ProcessingOptions
+        {
+            Verify = false,
+            ImageTransform = new DoubleSize(),
+        });
+
+        int doubled = 2 * ProcessingOptions.Default.Dpi;
+        Assert.All(result.Pages, p => Assert.Equal(doubled, p.Dpi));
+        Assert.All(textLayer.Dpis, d => Assert.Equal(doubled, d));
+    }
+
+    private sealed class DoubleSize : IPageImageTransform
+    {
+        public PageImage Transform(PageImage image) =>
+            new(image.Width * 2, image.Height * 2, image.Dpi * 2, new byte[image.Width * image.Height * 16]);
+    }
+
+    private sealed class DpiRecordingTextLayer : ITextLayerReader
+    {
+        private readonly FakeTextLayer _inner = new();
+        public List<int> Dpis { get; } = new();
+        public TextLayerPage? Read(byte[] pdf, int pageNumber, int dpi)
+        {
+            lock (Dpis) Dpis.Add(dpi);
+            return _inner.Read(pdf, pageNumber, dpi);
+        }
     }
 
     [Fact]

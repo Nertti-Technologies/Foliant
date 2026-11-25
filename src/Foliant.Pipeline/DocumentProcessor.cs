@@ -7,6 +7,7 @@
 // characters come from wherever they're most trustworthy.
 
 using System.Diagnostics;
+using Foliant.Internal;
 using UglyToad.PdfPig.Annotations;
 using UglyToad.PdfPig.Tokens;
 
@@ -211,10 +212,14 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
         if (options.ImageTransform is { } transform)
             image = transform.Transform(image);
 
+        // The raster's DPI as rendered and transformed (a resizing transform reports its own); the
+        // text layer is read in this raster's pixel space.
+        int rasterDpi = image.Dpi;
+
         // ── Characters: text layer when trustworthy, OCR otherwise ──────────
         TextLayerPage? layer = options.TextLayer == TextLayerMode.Never
             ? null
-            : _textLayer.Read(pdf, pageNumber, options.Dpi);
+            : _textLayer.Read(pdf, pageNumber, rasterDpi);
 
         bool useLayer = options.TextLayer switch
         {
@@ -241,7 +246,7 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
                 "cannot be extracted without an Adobe XFA engine (the page renders only the " +
                 "viewer's \"Please wait\" placeholder)";
             return new PageResult(
-                pageNumber, image.Width, image.Height, options.Dpi,
+                pageNumber, image.Width, image.Height, rasterDpi,
                 Array.Empty<Region>(), Array.Empty<TextLine>(), Array.Empty<TextLine>(),
                 TextSource.TextLayer,
                 $"<!-- Foliant: {notice}. -->\n",
@@ -254,7 +259,7 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
         int orientationApplied = 0;
         int? effectiveDpi = null;
         bool lowResolution = false;
-        int renderDpi = options.Dpi;      // actual render DPI of the raster the page ends up using
+        int renderDpi = rasterDpi;        // actual DPI of the raster the page ends up using
         bool retried = false;             // the ADR-0004 retry ladder ran on this page
         string? recoveredVia = null;      // set when a retry rung's result was kept
         IReadOnlyList<TextLine> lines;
@@ -365,12 +370,12 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
                     // (options.Dpi > 300). An uncapped re-render already doubled the pixel budget;
                     // stacking another upscale on top of it buys nothing and — with a 4×-native SR
                     // backend — explodes the intermediate buffer past the array limit.
-                    int candidateDpi = retryDpi;
+                    int candidateDpi = rerendered.Dpi;   // as transformed, like rasterDpi on the first pass
                     if (retryDpi < 2 * options.Dpi
                         && _upscaler is not null && options.LowResolutionUpscaleFactor > 1f)
                     {
                         var upscaled = _upscaler.Upscale(rerendered, options.LowResolutionUpscaleFactor);
-                        candidateDpi = ScaledDpi(retryDpi, rerendered, upscaled);
+                        candidateDpi = ScaledDpi(candidateDpi, rerendered, upscaled);
                         rerendered = upscaled;
                     }
 
@@ -396,7 +401,7 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
         //    the output. The OCR path already captures them from the rendered widgets. ────────────
         if (useLayer)
         {
-            var fieldLines = AcroFormValueLines(pdf, pageNumber, options.Dpi);
+            var fieldLines = AcroFormValueLines(pdf, pageNumber, rasterDpi);
             if (fieldLines.Count > 0) lines = lines.Concat(fieldLines).ToList();
         }
 
@@ -458,9 +463,10 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
 
         // ── Typed key-value form fields (opt-in) ─────────────────────────────
         // AcroForm dictionary when present; geometric fallback (later) uses the page's lines.
+        // A template-routed page takes its fields from the template below, so extraction is skipped.
         IReadOnlyList<FormField>? formFields = null;
-        if (options.ExtractFormFields && _formFields is not null)
-            formFields = _formFields.Extract(pdf, pageNumber, image, lines);
+        if (options.ExtractFormFields && _formFields is not null && templated is null)
+            formFields = ExtractFormFields(_formFields, pdf, pageNumber, image, renderDpi, orientationApplied, lines);
 
         // ── Template routing output ──────────────────────────────────────────
         // A matched page gets deterministic, label-bound fields plus an APPENDED template-field section.
@@ -532,11 +538,54 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
 
     /// <summary>
     /// The DPI a resized raster represents: <see cref="PageResult.Dpi"/> must describe the raster the
-    /// page's geometry lives in (WidthPx at Dpi), while upscalers keep the nominal
-    /// <see cref="PageImage.Dpi"/> of their input. Same orientation before and after, so widths compare.
+    /// page's geometry lives in (WidthPx at Dpi). Derived from the size change rather than read from
+    /// the upscaler's result, so an upscaler that keeps its input's DPI still gives the right value.
+    /// Same orientation before and after, so widths compare.
     /// </summary>
     private static int ScaledDpi(int dpi, PageImage before, PageImage after) =>
-        before.Width == after.Width ? dpi : (int)Math.Round(dpi * (double)after.Width / before.Width);
+        SkiaInterop.ScaledDpi(dpi, before.Width, after.Width);
+
+    /// <summary>
+    /// Runs the form-field extractor in the frame the page was rendered in. Extractors map PDF points
+    /// to raster pixels with the image's DPI and size: they get the raster at its actual DPI and, on a
+    /// page the orientation detector rotated, the raster and lines rotated back. The fields' bounds are
+    /// rotated forward into the raster the page's other geometry lives in. Not undone: a rotation by
+    /// <see cref="ProcessingOptions.ImageTransform"/> and the preprocessor's small-angle deskew.
+    /// Memory: on a rotated page the raster is copied once more while rotating back (a 600-DPI Letter
+    /// page is 5100x6600 BGRA, about 135 MB by arithmetic), released when extraction returns.
+    /// </summary>
+    internal static IReadOnlyList<FormField> ExtractFormFields(
+        IFormFieldExtractor extractor, byte[] pdf, int pageNumber, PageImage image, int dpi,
+        int rotation, IReadOnlyList<TextLine> lines)
+    {
+        var atDpi = image.Dpi == dpi ? image : new PageImage(image.Width, image.Height, dpi, image.PixelsBgra8888);
+        if (rotation == 0)
+            return extractor.Extract(pdf, pageNumber, atDpi, lines);
+
+        var upright = ScanDegrader.Rotate(-rotation).Transform(atDpi);
+        var uprightLines = lines
+            .Select(l => l with { Bounds = RotateClockwise(l.Bounds, 360 - rotation, image.Width, image.Height) })
+            .ToList();
+        return extractor.Extract(pdf, pageNumber, upright, uprightLines)
+            .Select(f => f.Bounds is { } b
+                ? f with { Bounds = RotateClockwise(b, rotation, upright.Width, upright.Height) }
+                : f)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Maps a box in a <paramref name="width"/> x <paramref name="height"/> raster to the raster
+    /// rotated clockwise by <paramref name="degrees"/> (0/90/180/270), matching
+    /// <see cref="ScanDegrader.Rotate"/> on a cardinal angle.
+    /// </summary>
+    internal static BoundingBox RotateClockwise(BoundingBox b, int degrees, int width, int height) =>
+        (((degrees % 360) + 360) % 360) switch
+        {
+            90 => new BoundingBox(height - b.Y2, b.X1, height - b.Y1, b.X2),
+            180 => new BoundingBox(width - b.X2, height - b.Y2, width - b.X1, height - b.Y1),
+            270 => new BoundingBox(b.Y1, width - b.X2, b.Y2, width - b.X1),
+            _ => b,
+        };
 
     private static int CountWords(IReadOnlyList<TextLine> lines, float minConfidence = 0f) =>
         lines.Where(l => l.Confidence >= minConfidence)

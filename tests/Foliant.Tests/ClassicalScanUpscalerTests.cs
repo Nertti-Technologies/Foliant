@@ -20,7 +20,7 @@ public class ClassicalScanUpscalerTests
     }
 
     [Fact]
-    public void Upscale_DoublesDimensions_PreservesDpi()
+    public void Upscale_DoublesDimensions_AndDpi()
     {
         var upscaler = new ClassicalScanUpscaler();
         var src = Solid(50, 40, dpi: 300);
@@ -29,7 +29,7 @@ public class ClassicalScanUpscalerTests
 
         Assert.Equal(100, result.Width);
         Assert.Equal(80, result.Height);
-        Assert.Equal(300, result.Dpi);                       // Dpi is nominal render DPI, unchanged
+        Assert.Equal(600, result.Dpi);                       // Dpi still maps pixels to PDF points
         Assert.Equal(100 * 80 * 4, result.PixelsBgra8888.Length);
     }
 

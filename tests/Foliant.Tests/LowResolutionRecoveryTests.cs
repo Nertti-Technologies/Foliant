@@ -266,6 +266,26 @@ public class LowResolutionRecoveryTests
     }
 
     [Fact]
+    public async Task Rung2_WithAResizingTransform_DpiFollowsTheTransform()
+    {
+        var renderer = new FakeRenderer();
+        var ocr = new SeqOcr(NoLines, NoLines, Lines("recovered text from rerendered page"));
+        using var processor = NewProcessor(renderer, ocr, new FakeScanResolution(72), new FakeUpscaler());
+
+        var result = await processor.ProcessAsync(
+            ScannedShapePdf(), Opts(dpi: 400) with { ImageTransform = new DoubleSize() });
+
+        // 600-DPI re-render, doubled by the transform to 1200, then upscaled 2x.
+        Assert.Equal(2400, Assert.Single(result.Pages).Dpi);
+    }
+
+    private sealed class DoubleSize : IPageImageTransform
+    {
+        public PageImage Transform(PageImage image) =>
+            new(image.Width * 2, image.Height * 2, image.Dpi * 2, new byte[image.Width * image.Height * 16]);
+    }
+
+    [Fact]
     public async Task KeepBetter_RetryCanNeverLoseWords()
     {
         var renderer = new FakeRenderer();

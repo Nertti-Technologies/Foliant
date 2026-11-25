@@ -31,6 +31,23 @@ internal static class SkiaInterop
         return bitmap;
     }
 
+    /// <summary>
+    /// The DPI of a raster resized from <paramref name="fromWidth"/> to <paramref name="toWidth"/>
+    /// pixels, so <see cref="PageImage.Dpi"/> still maps its pixels to PDF points. The widths must be
+    /// in the same orientation.
+    /// </summary>
+    public static int ScaledDpi(int dpi, int fromWidth, int toWidth)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fromWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(toWidth);
+        return fromWidth == toWidth ? dpi : Math.Max(1, (int)Math.Round(dpi * (double)toWidth / fromWidth));
+    }
+
+    /// <summary>Copies a resized copy of <paramref name="source"/> into a <see cref="PageImage"/>
+    /// whose DPI is scaled by the width change.</summary>
+    public static PageImage ToResizedPageImage(SKBitmap resized, PageImage source) =>
+        ToPageImage(resized, ScaledDpi(source.Dpi, source.Width, resized.Width));
+
     /// <summary>Copies an <see cref="SKBitmap"/> into a <see cref="PageImage"/> (converting to BGRA8888 if needed).</summary>
     public static PageImage ToPageImage(SKBitmap bitmap, int dpi)
     {

@@ -16,7 +16,8 @@ namespace Foliant;
 /// </list>
 ///
 /// Implementations must be side-effect free and return a new <see cref="PageImage"/> (or the
-/// input unchanged); the same instance may be reused across pages and threads.
+/// input unchanged); the same instance may be reused across pages and threads. A transform that
+/// resizes the page reports the DPI of its result, which the page's geometry then uses.
 /// </summary>
 public interface IPageImageTransform
 {

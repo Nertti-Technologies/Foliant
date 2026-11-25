@@ -133,13 +133,13 @@ public sealed class OnnxSuperResolutionUpscaler : IScanUpscaler, IDisposable
         // 2) Resize the native-scale result to the requested factor (no-op when they already match).
         int targetW = (int)Math.Round(image.Width * (double)factor);
         int targetH = (int)Math.Round(image.Height * (double)factor);
-        var native = new PageImage(sw, sh, image.Dpi, srBgra);
+        var native = new PageImage(sw, sh, SkiaInterop.ScaledDpi(image.Dpi, image.Width, sw), srBgra);
         if (sw == targetW && sh == targetH) return native;
 
         using var bmp = SkiaInterop.ToBitmap(native);
         using var dst = bmp.Resize(new SKImageInfo(targetW, targetH, SKColorType.Bgra8888, SKAlphaType.Opaque), Cubic)
             ?? throw new InvalidOperationException("Super-resolution resize failed.");
-        return SkiaInterop.ToPageImage(dst, image.Dpi);
+        return SkiaInterop.ToResizedPageImage(dst, image);
     }
 
     // Non-overlapping fixed-size tiles; partial edge tiles are filled by edge-replication and the valid
@@ -220,7 +220,7 @@ public sealed class OnnxSuperResolutionUpscaler : IScanUpscaler, IDisposable
         using var bmp = SkiaInterop.ToBitmap(image);
         using var dst = bmp.Resize(new SKImageInfo(targetW, targetH, SKColorType.Bgra8888, SKAlphaType.Opaque), Cubic)
             ?? throw new InvalidOperationException("Fallback resize failed.");
-        return SkiaInterop.ToPageImage(dst, image.Dpi);
+        return SkiaInterop.ToResizedPageImage(dst, image);
     }
 
     // Dry run at the model's fixed input size to learn its intrinsic scale (output edge / input edge).
