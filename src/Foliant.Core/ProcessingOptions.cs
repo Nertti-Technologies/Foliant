@@ -238,7 +238,9 @@ public sealed record ProcessingOptions
     /// Lets a caller inject their own preprocessing, and lets the verification harness inject
     /// synthetic degradations for robustness measurement (Gate 7). Because it runs before the
     /// text-layer decision, a born-digital page still takes the fast path unless the transform
-    /// is combined with <see cref="TextLayerMode.Never"/>.
+    /// is combined with <see cref="TextLayerMode.Never"/>. A rotation or crop it applies is not
+    /// described by the <see cref="PageFrame"/> form-field extractors receive, so PDF-derived
+    /// form-field geometry will not line up on such pages.
     /// </summary>
     public IPageImageTransform? ImageTransform { get; init; }
 

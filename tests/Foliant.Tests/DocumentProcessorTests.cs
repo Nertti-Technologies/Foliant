@@ -130,6 +130,7 @@ public class DocumentProcessorTests
     {
         public int Calls;
         public PageImage? LastImage;
+        public PageFrame? LastFrame;
         public IReadOnlyList<FormField> Extract(
             byte[] pdf, int pageNumber, PageImage image, IReadOnlyList<TextLine> lines)
         {
@@ -137,6 +138,42 @@ public class DocumentProcessorTests
             LastImage = image;
             return new[] { new FormField("solicitation_number", "ABC123-25-R-00001", FieldKind.Text) };
         }
+
+        public IReadOnlyList<FormField> Extract(
+            byte[] pdf, int pageNumber, PageImage image, IReadOnlyList<TextLine> lines, PageFrame frame)
+        {
+            LastFrame = frame;
+            return Extract(pdf, pageNumber, image, lines);
+        }
+    }
+
+    // Reports a skew without changing pixels; Resize makes it return a different-size raster.
+    private sealed class FakeSkewPreprocessor(float skew, bool resize = false) : IPagePreprocessor
+    {
+        public PreprocessedPage Process(PageImage page) => new(
+            resize ? new PageImage(page.Width + 1, page.Height, page.Dpi, new byte[(page.Width + 1) * page.Height * 4]) : page,
+            skew, ContrastStretched: false, Denoised: false);
+    }
+
+    [Theory]
+    [InlineData(2.5f, false, 2.5f)]
+    [InlineData(2.5f, true, 0f)]            // resized: not the documented rotation, so not used
+    [InlineData(float.NaN, false, 0f)]      // non-finite: ignored
+    public async Task FormFields_OnAScannedPage_GetTheDeskewInTheirFrame(float skew, bool resize, float expected)
+    {
+        var formFields = new FakeFormFields();
+        using var processor = new DocumentProcessor(new FakeRenderer(), new FakeLayout(), new FakeOcr(),
+            new FakeTables(), new XyCutReadingOrder(), new FakeTextLayer { WordCount = 0 },
+            preprocessor: new FakeSkewPreprocessor(skew, resize), formFields: formFields);
+
+        await processor.ProcessAsync(FakePdf, new ProcessingOptions
+        {
+            Verify = false,
+            DetectOrientation = false,
+            ExtractFormFields = true,
+        });
+
+        Assert.Equal(new PageFrame(resize ? 101 : 100, 100, 0, expected), formFields.LastFrame);
     }
 
     private static DocumentProcessor NewProcessor(

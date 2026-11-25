@@ -97,14 +97,32 @@ public interface IFormFieldExtractor
 {
     /// <param name="pdf">The PDF file contents.</param>
     /// <param name="pageNumber">1-based page number.</param>
-    /// <param name="image">The page raster the lines live in, in the frame it was rendered in (carries
-    /// DPI and size for coordinate mapping). DocumentProcessor passes the raster's actual DPI, also after an
-    /// upscale, and on a page its orientation detector rotated it passes the raster and lines
-    /// rotated back, then rotates the fields' bounds into the page's raster.</param>
+    /// <param name="image">The page's final raster, which the lines live in, at its actual DPI (also after
+    /// an upscale). On a scanned page it may have been turned upright and deskewed; see the overload
+    /// that takes a <see cref="PageFrame"/>.</param>
     /// <param name="lines">The page's recognized text lines (OCR or text-layer), for geometric fallback.</param>
-    /// <returns>The extracted fields; empty when none are found.</returns>
+    /// <returns>The extracted fields, with bounds in <paramref name="image"/>; empty when none are found.</returns>
     IReadOnlyList<FormField> Extract(
         byte[] pdf, int pageNumber, PageImage image, IReadOnlyList<TextLine> lines);
+
+    /// <summary>
+    /// The overload DocumentProcessor calls. <paramref name="frame"/> says how <paramref name="image"/>
+    /// relates to the page as rendered; an extractor that maps PDF coordinates to pixels (PDF points x DPI
+    /// / 72) maps them through <see cref="PageFrame.FromRendered"/> so they line up with
+    /// <paramref name="lines"/>. The default ignores the frame and calls the four-argument overload, which
+    /// suits extractors that work from the lines alone. An extractor that wraps others (a decorator or
+    /// composite) should override this overload and pass the frame on; otherwise the inner extractors
+    /// get <see cref="PageFrame.Of"/> of the image, as if the page had not been turned or deskewed.
+    /// </summary>
+    /// <param name="pdf">The PDF file contents.</param>
+    /// <param name="pageNumber">1-based page number.</param>
+    /// <param name="image">The page's final raster, as in the four-argument overload.</param>
+    /// <param name="lines">The page's recognized text lines, in <paramref name="image"/>.</param>
+    /// <param name="frame">How <paramref name="image"/> was turned and deskewed from the rendered page.</param>
+    /// <returns>The extracted fields, with bounds in <paramref name="image"/>; empty when none are found.</returns>
+    IReadOnlyList<FormField> Extract(
+        byte[] pdf, int pageNumber, PageImage image, IReadOnlyList<TextLine> lines, PageFrame frame) =>
+        Extract(pdf, pageNumber, image, lines);
 }
 
 /// <summary>

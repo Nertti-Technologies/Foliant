@@ -13,6 +13,10 @@
   `Foliant__AllowedRoots` lists a network root: reading one makes Windows authenticate to that host.
 
 ### Added
+- `PageFrame` and a new `IFormFieldExtractor.Extract` overload that takes it (a default interface
+  method, so existing extractors keep working). It says how a scanned page's final raster was turned
+  upright and deskewed from the page as rendered; `PageFrame.FromRendered` maps a box computed from PDF
+  coordinates onto that raster.
 - `ProcessingOptions.MaxPagePixels` (default 100 million) bounds every page raster. A page too large
   for `Dpi` renders at the highest DPI that fits (reported in `PageResult.Dpi`, with a `Notice`; an
   OCR-routed page below half the requested DPI is also flagged `NeedsReview`), and an upscale that
@@ -25,6 +29,23 @@
 - `ModelAsset` checks `FileName` (a bare file name) and `Sha256` (64 lower-case hex characters) when it
   is built, including through `with`, and throws `ArgumentException`. Such assets already failed when
   used; they now fail where they are made.
+
+### Fixed
+- Form fields on scanned pages the orientation detector turned (a regression in 1.9.0): extractors
+  again get the final, upright raster and text lines. In 1.9.0 the lines were turned back to the
+  page as rendered, which broke the row-based extractors (geometric, LiLT) on those pages.
+- Widget form fields on turned or deskewed scanned pages now line up with the page's text:
+  `WidgetFormFieldExtractor` maps its widget boxes through the `PageFrame`, and `CompositeFormFieldExtractor`
+  passes the frame on. No raster copy is made for this any more.
+- `PreprocessedPage.SkewCorrectedDegrees` documents the rotation it reports (minus the angle, about the
+  centre, same size). A preprocessor that changes the size or reports a non-finite angle has its skew
+  ignored for the frame. A rotation applied by `ProcessingOptions.ImageTransform` is not described by
+  the frame.
+- **For implementers:** an `IFormFieldExtractor` that wraps other extractors should override the
+  `PageFrame` overload and pass the frame on. A mocking library that intercepts interface members (for
+  example Moq) also intercepts the new overload, which the pipeline now calls: set it up too, or enable
+  calling the base implementation. A custom `IPagePreprocessor` that deskews must report the angle
+  as documented, or 0; the pipeline cannot detect a wrong sign.
 
 ## 1.9.0 — 2026-11-25 (third-party notices, DPI and form-field fixes)
 
