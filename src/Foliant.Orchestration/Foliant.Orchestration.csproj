@@ -15,8 +15,8 @@
          local project/folder reference. This is the cardinal one-way-dependency rule (Gate G0): Foliant may
          reference ZeroDep; ZeroDep must never reference Foliant. A package boundary makes the reverse
          impossible by construction. -->
-    <PackageReference Include="ZeroDep" Version="2.1.1" />
-    <PackageReference Include="ZeroDep.Abstractions" Version="2.1.1" />
+    <PackageReference Include="ZeroDep" Version="2.2.0" />
+    <PackageReference Include="ZeroDep.Abstractions" Version="2.2.0" />
     <PackageReference Update="MinVer" Version="7.0.0" />
   </ItemGroup>
 
