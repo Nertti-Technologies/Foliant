@@ -41,6 +41,8 @@ internal static class FederalFormTableRenderer
         }
 
         // Same no-text-loss tail as the default renderer: lines inside the region but outside the grid.
+        // Layout contract: grid rows, then a blank line, then these lines. Foliant.DocumentExtraction's
+        // ExtractionDocumentMapper.LinesOutsideGrid parses it to recover them; keep the two in step.
         if (extraction.UnassignedLines.Count > 0)
         {
             if (sb.Length > 0) sb.AppendLine();

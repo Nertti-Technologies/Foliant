@@ -1,0 +1,7 @@
+Component: Document extraction abstractions, preview (dotnet/extensions)
+Packages: Microsoft.Extensions.DocumentExtraction.Abstractions, Microsoft.Extensions.Documents.Abstractions
+Declared: MIT
+Source: https://github.com/dotnet/extensions
+Version: 11.0.1-preview.1.26570.2
+Texts: LICENSE and THIRD-PARTY-NOTICES.TXT from https://github.com/dotnet/extensions/tree/1e8c914781cf8378f3bbb547bcb024518a2be74c, the commit the packages name in their nuspec (the packages do not include them)
+Retrieved: 2026-11-25

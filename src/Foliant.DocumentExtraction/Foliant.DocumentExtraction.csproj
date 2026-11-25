@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Experimental: a local, layout-aware provider for the Microsoft.Extensions.DocumentExtraction preview. Extracts PDFs with Foliant and returns the shared ExtractionDocument model; Foliant's review and recall signals travel in the document metadata and its raw representation. See ADR-0009.</Description>
+    <PackageTags>$(PackageTags);document-extraction;dataingestion</PackageTags>
+    <!-- Its own preview release line (tags docext-v*), independent of Foliant's v* releases, because it
+         depends on preview packages: a stable version may not depend on a prerelease (NU5104). -->
+    <MinVerTagPrefix>docext-v</MinVerTagPrefix>
+    <MinVerDefaultPreReleaseIdentifiers>preview.0</MinVerDefaultPreReleaseIdentifiers>
+    <!-- Packed only on its own release line (release.yml, package: docext passes -p:PackDocExt=true), so a
+         main v* release never ships it. Unconditional on purpose: scripts/generate-notices.py treats a
+         property-valued IsPackable as packable, so its dependencies stay in THIRD-PARTY-NOTICES.txt. -->
+    <PackDocExt Condition="'$(PackDocExt)' == ''">false</PackDocExt>
+    <IsPackable>$(PackDocExt)</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Foliant.Core\Foliant.Core.csproj" />
+    <ProjectReference Include="..\Foliant.Pipeline\Foliant.Pipeline.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- MIT, Microsoft. Preview: the API may change between builds; see third-party/dotnet-extensions. -->
+    <PackageReference Include="Microsoft.Extensions.DocumentExtraction.Abstractions" Version="11.0.1-preview.1.26570.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Foliant.DocumentExtraction.Tests" />
+  </ItemGroup>
+
+</Project>

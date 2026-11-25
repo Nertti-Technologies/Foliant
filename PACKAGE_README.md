@@ -46,6 +46,7 @@ string json = result.ToJson(indented: true); // structured regions, tables, boun
 | `Foliant.Ocr.PaddleOcr` | PaddleOCR detection/recognition backend with rotated-text handling |
 | `Foliant.Tables.TableTransformer` | TableTransformer + ruling-grid table structure backend |
 | `Foliant.Models` | Model catalog + verified local cache (weights from Hugging Face) |
+| `Foliant.DocumentExtraction` | Experimental preview: local provider for `Microsoft.Extensions.DocumentExtraction` |
 
 Model weights (~280 MB total) are not inside the packages; they download on first use with
 checksum verification, or pre-fetch them yourself and point `FoliantProcessor.CreateDefault`

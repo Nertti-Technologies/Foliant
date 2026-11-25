@@ -225,6 +225,7 @@ public class LowResolutionRecoveryTests
         Assert.NotNull(page.Notice);
         Assert.Contains("recovered via 2× upscale retry", page.Notice);
         Assert.Empty(result.PagesNeedingReview);
+        Assert.Equal(600, page.Dpi);                             // the kept raster is the 2× upscale of 300
     }
 
     [Fact]
@@ -246,6 +247,22 @@ public class LowResolutionRecoveryTests
         Assert.False(page.NeedsReview);
         Assert.NotNull(page.Notice);
         Assert.Contains("recovered via re-render at 400 DPI retry", page.Notice);
+    }
+
+    [Fact]
+    public async Task Rung2_CappedRerenderThenUpscale_DpiDescribesTheUpscaledRaster()
+    {
+        var renderer = new FakeRenderer();
+        var ocr = new SeqOcr(NoLines, NoLines, Lines("recovered text from rerendered page"));
+        var upscaler = new FakeUpscaler();
+        using var processor = NewProcessor(renderer, ocr, new FakeScanResolution(72), upscaler);
+
+        var result = await processor.ProcessAsync(ScannedShapePdf(), Opts(dpi: 400));
+
+        var page = Assert.Single(result.Pages);
+        Assert.Equal(600, renderer.LastRenderDpi);               // min(2×400, 600): capped
+        Assert.Equal(2, upscaler.Calls);                         // rung 1, then the capped re-render
+        Assert.Equal(1200, page.Dpi);                            // 600-DPI render upscaled 2×
     }
 
     [Fact]

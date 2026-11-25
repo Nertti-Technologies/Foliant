@@ -116,6 +116,15 @@ These had leaked to `public` but are implementation details, not contract. They 
 - `ExtractionVerifier` — internal self-verification; its results are surfaced via the public
   `PageVerification` on each `PageResult`.
 
+## Experimental packages (not covered by the 1.x contract)
+
+- **`Foliant.DocumentExtraction`** — provider for the `Microsoft.Extensions.DocumentExtraction`
+  preview. It follows the upstream preview, so its API may change in any release. It has its own
+  version line (`0.x.y-preview.N`, tags `docext-v*`), and its public types are marked
+  `[Experimental("FOLIANT0001")]`. It rejoins the 1.x contract only after the upstream API
+  reaches a stable release. Its metadata keys (`foliant.*`) are part of the same experimental
+  surface.
+
 ## Post-1.0 roadmap (all additive — MINOR, won't break the contract)
 
 The frozen contract is designed to absorb the parked work without a MAJOR bump:

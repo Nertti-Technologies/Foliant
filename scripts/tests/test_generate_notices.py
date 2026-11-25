@@ -157,6 +157,15 @@ class NoticesTests(unittest.TestCase):
         graph, _ = self.g.load_graph()
         self.assertNotIn("Other", graph)
 
+    def test_property_valued_is_packable_counts_as_packable(self):
+        self.repo.write("src/Tool/Tool.csproj",
+                        "<Project><PropertyGroup><IsPackable>$(PackTool)</IsPackable></PropertyGroup></Project>")
+        self.repo.dependencies = {"Other": {"target": "Package", "version": "[1.0.0, )"}}
+        self.repo.libraries = {"Other/1.0.0": {"type": "package"}}
+        self.repo.assets("Tool")
+        graph, _ = self.g.load_graph()
+        self.assertIn("Other", graph)
+
     def test_conditional_is_packable_is_rejected(self):
         self.repo.write("src/App/App.csproj",
                         "<Project><PropertyGroup><IsPackable Condition=\"'$(X)'=='1'\">false</IsPackable></PropertyGroup></Project>")

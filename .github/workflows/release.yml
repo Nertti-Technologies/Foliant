@@ -10,6 +10,13 @@
 # exactly the "tagged the wrong commit / shipped old code" class of bug, now impossible.
 # Pushing a tag by hand no longer publishes anything; releasing is only ever this button.
 #
+# Two release lines (ADR-0009 D1), chosen by the `package` input:
+#  - main   : every packable Foliant package, version X.Y.Z, tag vX.Y.Z, CHANGELOG.md.
+#  - docext : the experimental Foliant.DocumentExtraction package only, version X.Y.Z-preview.N,
+#             tag docext-vX.Y.Z-preview.N, src/Foliant.DocumentExtraction/CHANGELOG.md. It depends on
+#             the Foliant packages built from the same commit, so run it from a commit that carries a
+#             main release tag (release main first); the workflow refuses otherwise.
+#
 # One-time setup (unchanged):
 #  - nuget.org → Trusted Publishing policy: this repo + workflow file `release.yml`.
 #  - repo secret NUGET_USER = your nuget.org profile name (NOT your email).
@@ -19,8 +26,14 @@ name: Release to nuget.org
 on:
   workflow_dispatch:
     inputs:
+      package:
+        description: "Release line: main (all Foliant packages) or docext (experimental adapter only)"
+        required: true
+        type: choice
+        options: [main, docext]
+        default: main
       version:
-        description: "Version to publish, e.g. 1.4.0 — must equal the top CHANGELOG.md entry on main"
+        description: "Version to publish: X.Y.Z for main, X.Y.Z-preview.N for docext — must equal the top entry of that line's CHANGELOG"
         required: true
         type: string
       dry_run:
@@ -32,6 +45,13 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      # Per-line settings; the steps below read only these, never the input directly.
+      TAG: ${{ inputs.package == 'docext' && 'docext-v' || 'v' }}${{ inputs.version }}
+      VERSION_PATTERN: ${{ inputs.package == 'docext' && '^[0-9]+\.[0-9]+\.[0-9]+-preview\.[0-9]+$' || '^[0-9]+\.[0-9]+\.[0-9]+$' }}
+      CHANGELOG: ${{ inputs.package == 'docext' && 'src/Foliant.DocumentExtraction/CHANGELOG.md' || 'CHANGELOG.md' }}
+      PACK_TARGET: ${{ inputs.package == 'docext' && 'src/Foliant.DocumentExtraction/Foliant.DocumentExtraction.csproj' || 'Foliant.sln' }}
+      PACK_DOCEXT: ${{ inputs.package == 'docext' && 'true' || 'false' }}
     permissions:
       id-token: write   # GitHub OIDC token for NuGet Trusted Publishing
       contents: write   # push the release tag + create the GitHub Release
@@ -46,21 +66,33 @@ jobs:
           test "${GITHUB_REF}" = "refs/heads/main" \
             || { echo "::error::Run this workflow with Branch = main (got ${GITHUB_REF})."; exit 1; }
 
-      - name: Guard — version is X.Y.Z and matches the TOP CHANGELOG entry
+      - name: Guard — version matches the line's format and the TOP entry of its CHANGELOG
+        env:
+          VER: ${{ inputs.version }}
         run: |
-          VER="${{ inputs.version }}"
-          echo "$VER" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
-            || { echo "::error::version '$VER' must be X.Y.Z"; exit 1; }
-          TOP=$(grep -m1 -E '^## [0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md \
-                | sed -E 's/^## ([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-          echo "Top CHANGELOG entry = '$TOP'   requested = '$VER'"
+          echo "$VER" | grep -Eq "$VERSION_PATTERN" \
+            || { echo "::error::version '$VER' does not match $VERSION_PATTERN"; exit 1; }
+          HEADING=$(grep -m1 -E '^## [0-9]+\.[0-9]+\.[0-9]+' "$CHANGELOG")
+          if echo "$HEADING" | grep -qi 'unreleased'; then
+            echo "::error::Top $CHANGELOG entry is marked unreleased: give it the release date first."; exit 1; fi
+          TOP=$(echo "$HEADING" | sed -E 's/^## ([0-9]+\.[0-9]+\.[0-9]+(-preview\.[0-9]+)?).*/\1/')
+          echo "Top $CHANGELOG entry = '$TOP'   requested = '$VER'"
           test "$TOP" = "$VER" \
-            || { echo "::error::Top CHANGELOG entry is '$TOP', not '$VER'. Land the '## $VER' entry on main first."; exit 1; }
+            || { echo "::error::Top $CHANGELOG entry is '$TOP', not '$VER'. Land the '## $VER' entry on main first."; exit 1; }
 
       - name: Guard — tag must not already exist (NuGet versions are immutable)
         run: |
-          if git rev-parse "v${{ inputs.version }}" >/dev/null 2>&1; then
-            echo "::error::tag v${{ inputs.version }} already exists — bump to the next version."; exit 1; fi
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::tag $TAG already exists — bump to the next version."; exit 1; fi
+
+      # The adapter's Foliant dependencies take this commit's main version (see the post-pack guard),
+      # which is a released version only on a commit tagged vX.Y.Z. Checked before tagging, so a
+      # refused run never leaves a docext tag behind.
+      - name: Guard — docext runs from a commit with a main release tag
+        if: ${{ inputs.package == 'docext' }}
+        run: |
+          git describe --exact-match --match 'v[0-9]*' HEAD \
+            || { echo "::error::HEAD has no vX.Y.Z tag: release main first, then docext from the same commit."; exit 1; }
 
       - name: Setup .NET (pinned by global.json)
         uses: actions/setup-dotnet@v4
@@ -84,15 +116,30 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ inputs.version }}" -m "Release ${{ inputs.version }}"
-          git push origin "v${{ inputs.version }}"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
 
       - name: Pack   # rebuilds with the tag's version stamped in
-        run: dotnet pack Foliant.sln -c Release -o ./nupkgs
+        run: dotnet pack "$PACK_TARGET" -c Release -o ./nupkgs -p:PackDocExt="$PACK_DOCEXT"
+
+      # Backstop for the pre-tag check: the adapter's Foliant dependencies take the version MinVer
+      # computes for this commit. Off a main release tag that is an unpublished prerelease (e.g.
+      # 1.8.2-alpha.0.12) and the package could not be installed, so refuse unless every Foliant
+      # dependency is a released version.
+      - name: Guard — docext depends only on released Foliant packages
+        if: ${{ inputs.package == 'docext' }}
+        run: |
+          DEPS=$(unzip -p nupkgs/Foliant.DocumentExtraction.*.nupkg '*.nuspec' \
+                 | grep -oE 'id="Foliant\.[A-Za-z.]+" version="[^"]+"')
+          echo "$DEPS"
+          if echo "$DEPS" | grep -q 'version="[^"]*-'; then
+            echo "::error::Foliant dependencies are prereleases: run docext from a commit tagged with a main release."; exit 1; fi
+          test "$(find nupkgs -name '*.nupkg' | wc -l)" -eq 1 \
+            || { echo "::error::docext must pack exactly one package"; ls nupkgs; exit 1; }
 
       - name: NuGet login (OIDC → temp API key)
         if: ${{ !inputs.dry_run }}
-        uses: NuGet/login@v1
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0 (Apache-2.0)
         id: login
         with:
           user: ${{ secrets.NUGET_USER }}
@@ -109,7 +156,12 @@ jobs:
         if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
+          VER: ${{ inputs.version }}
+          PACKAGE: ${{ inputs.package }}
         run: |
-          gh release create "v${{ inputs.version }}" \
-            --title "Foliant ${{ inputs.version }}" \
-            --notes "See the ${{ inputs.version }} entry in CHANGELOG.md."
+          if [ "$PACKAGE" = docext ]; then
+            gh release create "$TAG" --prerelease --title "Foliant.DocumentExtraction $VER" \
+              --notes "See the $VER entry in $CHANGELOG."
+          else
+            gh release create "$TAG" --title "Foliant $VER" --notes "See the $VER entry in $CHANGELOG."
+          fi

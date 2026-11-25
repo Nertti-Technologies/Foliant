@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Every package ships `THIRD-PARTY-NOTICES.txt`, the licence and attribution texts of everything it
+  depends on and of the models downloaded at runtime. Packing fails if the file is out of date.
+
+### Fixed
+- `PageResult.Dpi` now describes the raster the page's geometry lives in when an upscale was kept
+  (`UpscaleLowResolutionScans`, or the low-resolution retry). It used to keep the render DPI, so
+  `WidthPx / Dpi` and any coordinate conversion were off by the upscale factor on those pages. The
+  `dpi` field in the JSON output changes the same way.
+
 ## 1.8.1 — 2026-07-21 (complete the 1.8.0 release)
 
 Patch. **1.8.0 published only partially** — the release push aborted on the `Foliant.Mcp` tool package

@@ -143,6 +143,26 @@ public class MarkdownComposerTests
         Assert.Contains("| 0001 | $100 |", md);
     }
 
+    // Layout contract with Foliant.DocumentExtraction (ExtractionDocumentMapper.LinesOutsideGrid): grid
+    // rows, then one blank line, then the lines outside the grid. The adapter tests pin the parsing side.
+    [Fact]
+    public void RenderTable_LinesOutsideGrid_FollowOneBlankLine()
+    {
+        var cells = new List<TableCell>
+        {
+            new(0, 0, "Item", new BoundingBox(0, 0, 10, 10)),
+            new(0, 1, "Cost", new BoundingBox(10, 0, 20, 10)),
+        };
+        var outside = new[] { L("| Note: totals exclude tax", 0, 30, 20, 35) };
+        var extraction = new TableExtraction(new TableStructure(1, 2, cells), outside);
+
+        string md = MarkdownComposer.RenderTable(extraction).ReplaceLineEndings("\n");
+        string federal = FederalFormTableRenderer.Render(extraction, outside).ReplaceLineEndings("\n");
+
+        Assert.Equal("| Item | Cost |\n|---|---|\n\n| Note: totals exclude tax\n", md);
+        Assert.Equal(md, federal);
+    }
+
     [Fact]
     public void RenderTable_NoGrid_FallsBackToParagraphWithAllLines()
     {
