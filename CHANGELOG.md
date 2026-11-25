@@ -8,7 +8,9 @@
   the first 1,024 bytes are refused; error replies no longer include exception messages. The new
   `Foliant__AllowedRoots` option limits reads to listed folders: the path as written is checked before
   the file system is touched, then its real path with symbolic links resolved. It is opt-in, and the
-  server logs a startup warning when it is unset. Windows device paths (`\\?\`, `\\.\`) are refused.
+  server logs a startup warning when it is unset. Windows device paths (`\\?\`, `\\.\`) are refused,
+  and so are network paths (`\\host\share`, `//host/share`) and links to them, unless
+  `Foliant__AllowedRoots` lists a network root: reading one makes Windows authenticate to that host.
 
 ## 1.9.0 — 2026-11-25 (third-party notices, DPI and form-field fixes)
 

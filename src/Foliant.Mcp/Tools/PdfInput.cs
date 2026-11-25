@@ -38,6 +38,12 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
             return Failed($"Device paths are not accepted: {path}");
 
         var roots = Roots(options);
+        // Network paths (UNC on Windows, //host) make the OS connect and, on Windows, authenticate to
+        // that host: allowed only when a configured root is itself a network path (ADR-0010 T4).
+        bool networkAllowed = roots?.Any(root => IsNetworkPath(root.Configured) || IsNetworkPath(root.Real)) ?? false;
+        if (!networkAllowed && IsNetworkPath(path))
+            return Failed($"Network paths are not accepted unless Foliant__AllowedRoots lists one: {path}");
+
         string full, real;
         try
         {
@@ -46,7 +52,7 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
             full = Path.GetFullPath(path);
             if (roots is not null && !roots.Any(root => IsInside(full, root.Configured) || IsInside(full, root.Real)))
                 return OutsideRoots(path);
-            real = RealPath(full, refuseNetworkLinks: roots is not null);
+            real = RealPath(full, refuseNetworkLinks: !networkAllowed);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {

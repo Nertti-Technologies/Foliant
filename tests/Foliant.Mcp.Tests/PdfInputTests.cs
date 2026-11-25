@@ -112,6 +112,38 @@ public class PdfInputTests
     }
 
     [Fact]
+    public async Task NetworkPath_IsRefused_WhenNoRootIsANetworkPath()
+    {
+        string unc = OperatingSystem.IsWindows() ? @"\\203.0.113.1\share\x.pdf" : "//203.0.113.1/share/x.pdf";
+
+        var input = await PdfInput.ReadAsync(unc, new FoliantMcpOptions(), CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Contains("Network paths are not accepted", input.Error);
+    }
+
+    [Fact]
+    public async Task LinkToANetworkPath_IsRefused_WithRootsUnset()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        string dir = TempDir();
+        try
+        {
+            string link = Path.Combine(dir, "net");
+            File.CreateSymbolicLink(link, "//203.0.113.1/share");
+
+            var input = await PdfInput.ReadAsync(Path.Combine(link, "x.pdf"), new FoliantMcpOptions(), CancellationToken.None)
+                .WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Contains("Could not resolve the path", input.Error);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PathOutsideTheRoots_IsRefusedAsText_BeforeItIsResolved()
     {
         string allowed = TempDir();
@@ -123,7 +155,7 @@ public class PdfInputTests
 
             var input = await PdfInput.ReadAsync(unc, options, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
 
-            Assert.Contains("outside the folders", input.Error);
+            Assert.Contains("Network paths are not accepted", input.Error);   // refused before it is touched
         }
         finally
         {
