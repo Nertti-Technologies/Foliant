@@ -28,6 +28,31 @@ public sealed class FormFieldFrameTests
     }
 
     [Theory]
+    [InlineData(90, 40, 20)]
+    [InlineData(180, 40, 20)]
+    [InlineData(270, 40, 20)]
+    [InlineData(90, 41, 23)]
+    [InlineData(180, 41, 23)]
+    [InlineData(270, 41, 23)]
+    public void RotateCardinal_MatchesTheRasterRotation_PixelForPixel(int degrees, int w, int h)
+    {
+        var pixels = new byte[w * h * 4];
+        new Random(7).NextBytes(pixels);
+        var image = new PageImage(w, h, 72, pixels);
+
+        var expected = ScanDegrader.Rotate(degrees).Transform(image);
+        var actual = DocumentProcessor.RotateCardinal(image, degrees);
+
+        Assert.Equal((expected.Width, expected.Height, 72), (actual.Width, actual.Height, actual.Dpi));
+        Assert.Equal(expected.PixelsBgra8888, actual.PixelsBgra8888);
+    }
+
+    [Fact]
+    public void RotateCardinal_RejectsANonCardinalAngle() =>
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => DocumentProcessor.RotateCardinal(new PageImage(2, 2, 72, new byte[16]), 45));
+
+    [Theory]
     [InlineData(90)]
     [InlineData(180)]
     [InlineData(270)]

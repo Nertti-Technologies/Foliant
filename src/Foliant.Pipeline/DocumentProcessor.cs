@@ -7,6 +7,7 @@
 // characters come from wherever they're most trustworthy.
 
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Foliant.Internal;
 using UglyToad.PdfPig.Annotations;
 using UglyToad.PdfPig.Tokens;
@@ -551,8 +552,10 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
     /// page the orientation detector rotated, the raster and lines rotated back. The fields' bounds are
     /// rotated forward into the raster the page's other geometry lives in. Not undone: a rotation by
     /// <see cref="ProcessingOptions.ImageTransform"/> and the preprocessor's small-angle deskew.
-    /// Memory: on a rotated page the raster is copied once more while rotating back (a 600-DPI Letter
-    /// page is 5100x6600 BGRA, about 135 MB by arithmetic), released when extraction returns.
+    /// Memory: on a rotated page the rotation back makes one exact copy of the final raster, held until
+    /// extraction returns. That raster may be upscaled: a Letter page rendered at 300 DPI and upscaled
+    /// 2x is 5100x6600 BGRA, 134.6 MB by arithmetic. Page size is not capped (as for every raster
+    /// stage), so the copy is as large as the largest raster the page already produced.
     /// </summary>
     internal static IReadOnlyList<FormField> ExtractFormFields(
         IFormFieldExtractor extractor, byte[] pdf, int pageNumber, PageImage image, int dpi,
@@ -562,7 +565,7 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
         if (rotation == 0)
             return extractor.Extract(pdf, pageNumber, atDpi, lines);
 
-        var upright = ScanDegrader.Rotate(-rotation).Transform(atDpi);
+        var upright = RotateCardinal(atDpi, 360 - rotation);
         var uprightLines = lines
             .Select(l => l with { Bounds = RotateClockwise(l.Bounds, 360 - rotation, image.Width, image.Height) })
             .ToList();
@@ -571,6 +574,38 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
                 ? f with { Bounds = RotateClockwise(b, rotation, upright.Width, upright.Height) }
                 : f)
             .ToList();
+    }
+
+    /// <summary>
+    /// Rotates a raster clockwise by <paramref name="degrees"/> (0/90/180/270), matching
+    /// <see cref="ScanDegrader.Rotate"/> on a cardinal angle.
+    /// </summary>
+    internal static PageImage RotateCardinal(PageImage image, int degrees)
+    {
+        // An exact pixel permutation into one new buffer (no resampling, no intermediate bitmaps),
+        // using the same mapping as RotateClockwise applied to each one-pixel box.
+        int d = ((degrees % 360) + 360) % 360;
+        if (d == 0) return image;
+        if (d is not (90 or 180 or 270))
+            throw new ArgumentOutOfRangeException(nameof(degrees), degrees, "Only 0, 90, 180 and 270 are supported.");
+
+        int w = image.Width, h = image.Height;
+        int dw = d == 180 ? w : h, dh = d == 180 ? h : w;
+        var pixels = new byte[image.PixelsBgra8888.Length];
+        var src = MemoryMarshal.Cast<byte, uint>(image.PixelsBgra8888.AsSpan());
+        var dst = MemoryMarshal.Cast<byte, uint>(pixels.AsSpan());
+        for (int y = 0; y < h; y++)
+        {
+            var row = src.Slice(y * w, w);
+            switch (d)
+            {
+                case 90: for (int x = 0; x < w; x++) dst[x * dw + (h - 1 - y)] = row[x]; break;
+                case 180: for (int x = 0; x < w; x++) dst[(h - 1 - y) * dw + (w - 1 - x)] = row[x]; break;
+                case 270: for (int x = 0; x < w; x++) dst[(w - 1 - x) * dw + y] = row[x]; break;
+            }
+        }
+
+        return new PageImage(dw, dh, image.Dpi, pixels);
     }
 
     /// <summary>
