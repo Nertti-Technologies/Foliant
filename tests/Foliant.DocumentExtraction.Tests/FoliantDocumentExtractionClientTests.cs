@@ -20,8 +20,9 @@ public sealed class FoliantDocumentExtractionClientTests
     public async Task Rejects_non_pdf_media_type()
     {
         using var client = new FoliantDocumentExtractionClient(new FakeProcessor(Result()));
+        using var stream = new MemoryStream([1]);
         await Assert.ThrowsAsync<NotSupportedException>(() =>
-            client.ExtractAsync(new MemoryStream([1]), "doc", "image/png"));
+            client.ExtractAsync(stream, "doc", "image/png"));
     }
 
     [Theory]
@@ -31,7 +32,8 @@ public sealed class FoliantDocumentExtractionClientTests
     public async Task Accepts_pdf_media_type_variants(string mediaType)
     {
         using var client = new FoliantDocumentExtractionClient(new FakeProcessor(Result()));
-        var document = await client.ExtractAsync(new MemoryStream([1]), "doc", mediaType);
+        using var stream = new MemoryStream([1]);
+        var document = await client.ExtractAsync(stream, "doc", mediaType);
         Assert.Equal("doc", document.Identifier);
     }
 
@@ -39,8 +41,9 @@ public sealed class FoliantDocumentExtractionClientTests
     public async Task Rejects_blank_identifier_and_null_stream()
     {
         using var client = new FoliantDocumentExtractionClient(new FakeProcessor(Result()));
+        using var stream = new MemoryStream([1]);
         await Assert.ThrowsAnyAsync<ArgumentException>(() =>
-            client.ExtractAsync(new MemoryStream([1]), " ", "application/pdf"));
+            client.ExtractAsync(stream, " ", "application/pdf"));
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
             client.ExtractAsync(null!, "doc", "application/pdf"));
     }
@@ -52,11 +55,13 @@ public sealed class FoliantDocumentExtractionClientTests
         using var client = new FoliantDocumentExtractionClient(
             processor, new FoliantDocumentExtractionClientOptions { MaxInputBytes = 10 });
 
+        using var tooLong = new MemoryStream(new byte[11]);
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            client.ExtractAsync(new MemoryStream(new byte[11]), "doc", "application/pdf"));
+            client.ExtractAsync(tooLong, "doc", "application/pdf"));
         Assert.Equal(0, processor.Calls);
 
-        await client.ExtractAsync(new MemoryStream(new byte[10]), "doc", "application/pdf");
+        using var atLimit = new MemoryStream(new byte[10]);
+        await client.ExtractAsync(atLimit, "doc", "application/pdf");
         Assert.Equal(10, processor.LastInput!.Length);
     }
 
@@ -72,7 +77,7 @@ public sealed class FoliantDocumentExtractionClientTests
     [Fact]
     public async Task Rejects_seekable_stream_over_the_limit_before_reading()
     {
-        var stream = new CountingStream(new byte[100]);
+        using var stream = new CountingStream(new byte[100]);
         using var client = new FoliantDocumentExtractionClient(
             new FakeProcessor(Result()), new FoliantDocumentExtractionClientOptions { MaxInputBytes = 10 });
         await Assert.ThrowsAsync<InvalidDataException>(() => client.ExtractAsync(stream, "doc", "application/pdf"));
@@ -84,8 +89,9 @@ public sealed class FoliantDocumentExtractionClientTests
     {
         var client = new FoliantDocumentExtractionClient(new FakeProcessor(Result()));
         client.Dispose();
+        using var stream = new MemoryStream([1]);
         await Assert.ThrowsAsync<ObjectDisposedException>(() =>
-            client.ExtractAsync(new MemoryStream([1]), "doc", "application/pdf"));
+            client.ExtractAsync(stream, "doc", "application/pdf"));
     }
 
     [Fact]
@@ -94,8 +100,9 @@ public sealed class FoliantDocumentExtractionClientTests
         using var client = new FoliantDocumentExtractionClient(new FakeProcessor(Result()));
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
+        using var stream = new MemoryStream([1]);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            client.ExtractAsync(new MemoryStream([1]), "doc", "application/pdf", cancellationToken: cts.Token));
+            client.ExtractAsync(stream, "doc", "application/pdf", cancellationToken: cts.Token));
     }
 
     // --- options --------------------------------------------------------------------------------
@@ -109,12 +116,14 @@ public sealed class FoliantDocumentExtractionClientTests
         using var client = new FoliantDocumentExtractionClient(
             processor, new FoliantDocumentExtractionClientOptions { Processing = clientDefault });
 
-        await client.ExtractAsync(new MemoryStream([1]), "doc", "application/pdf");
+        using var first = new MemoryStream([1]);
+        await client.ExtractAsync(first, "doc", "application/pdf");
         Assert.Same(clientDefault, processor.LastOptions);
 
         var options = new DocumentExtractionOptions();
         options.AdditionalProperties[FoliantDocumentExtractionClient.ProcessingOptionsKey] = perCall;
-        await client.ExtractAsync(new MemoryStream([1]), "doc", "application/pdf", options);
+        using var second = new MemoryStream([1]);
+        await client.ExtractAsync(second, "doc", "application/pdf", options);
         Assert.Same(perCall, processor.LastOptions);
     }
 
@@ -122,20 +131,21 @@ public sealed class FoliantDocumentExtractionClientTests
     public async Task Unknown_or_mistyped_options_are_rejected()
     {
         using var client = new FoliantDocumentExtractionClient(new FakeProcessor(Result()));
+        using var stream = new MemoryStream([1]); // every call below throws before reading it
 
         var unknown = new DocumentExtractionOptions();
         unknown.AdditionalProperties["other"] = 1;
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            client.ExtractAsync(new MemoryStream([1]), "doc", "application/pdf", unknown));
+            client.ExtractAsync(stream, "doc", "application/pdf", unknown));
 
         var mistyped = new DocumentExtractionOptions();
         mistyped.AdditionalProperties[FoliantDocumentExtractionClient.ProcessingOptionsKey] = "fast";
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            client.ExtractAsync(new MemoryStream([1]), "doc", "application/pdf", mistyped));
+            client.ExtractAsync(stream, "doc", "application/pdf", mistyped));
 
         var named = new DocumentExtractionOptions { ExtractorName = "other" };
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            client.ExtractAsync(new MemoryStream([1]), "doc", "application/pdf", named));
+            client.ExtractAsync(stream, "doc", "application/pdf", named));
     }
 
     [Fact]
@@ -350,7 +360,8 @@ public sealed class FoliantDocumentExtractionClientTests
     private static async Task<ExtractionDocument> Extract(DocumentResult result)
     {
         using var client = new FoliantDocumentExtractionClient(new FakeProcessor(result));
-        return await client.ExtractAsync(new MemoryStream([1]), "doc", "application/pdf");
+        using var stream = new MemoryStream([1]);
+        return await client.ExtractAsync(stream, "doc", "application/pdf");
     }
 
     private static IEnumerable<string> AllText(ExtractionDocumentElement element) => element switch
