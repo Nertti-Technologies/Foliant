@@ -26,4 +26,13 @@ public sealed class PdfPageRenderer : IPageRenderer
 #pragma warning restore CA1416
         return SkiaInterop.ToPageImage(bitmap, dpi);
     }
+
+    public (double Width, double Height)? GetPageSize(byte[] pdf, int pageNumber)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+#pragma warning disable CA1416 // see Render
+        var size = Conversion.GetPageSize(pdf, (Index)(pageNumber - 1));
+#pragma warning restore CA1416
+        return (size.Width, size.Height);
+    }
 }

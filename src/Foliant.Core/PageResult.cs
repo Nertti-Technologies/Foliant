@@ -34,10 +34,14 @@ public sealed record PageVerification(
 /// <param name="Markdown">The page's composed Markdown.</param>
 /// <param name="Verification">Per-page self-verification results.</param>
 /// <param name="Notice">
-/// Optional structured notice when the page could not be normally extracted for a known
-/// structural reason (e.g. a dynamic XFA form whose content lives in an XFA packet and is
-/// unreachable without an Adobe engine). Null on normal pages. When set, callers should
-/// treat the page as needing review rather than trusting <paramref name="Markdown"/>.
+/// Optional structured notice about how the page was extracted: a known structural reason it could
+/// not be (e.g. a dynamic XFA form whose content lives in an XFA packet and is unreachable without
+/// an Adobe engine, or a page too large to render within
+/// <see cref="ProcessingOptions.MaxPagePixels"/>), or an informational note (a recovery step, a
+/// lowered render DPI). Null on normal pages. A notice saying content could not be extracted means
+/// the page must be reviewed rather than <paramref name="Markdown"/> trusted, as does
+/// <paramref name="NeedsReview"/>; an informational note comes with <paramref name="NeedsReview"/>
+/// false.
 /// </param>
 /// <param name="OrientationApplied">
 /// Coarse rotation (degrees clockwise: 0/90/180/270) the orientation detector applied to bring
@@ -66,7 +70,9 @@ public sealed record PageVerification(
 /// vouch for it (<see cref="PageVerification.RecallPercent"/> is null — invisible to recall
 /// aggregates), or a text-layer page embedding a large image whose content could not be
 /// recovered (<see cref="ProcessingOptions.RecoverEmbeddedImageText"/>) — recall is blind to
-/// pixels-only content, so it reports 100% on such pages. Callers aggregating recall MUST also
+/// pixels-only content, so it reports 100% on such pages — or a page
+/// <see cref="ProcessingOptions.MaxPagePixels"/> forced below half the requested DPI (or could not
+/// render at all) while its characters had to come from pixels. Callers aggregating recall MUST also
 /// surface <see cref="DocumentResult.PagesNeedingReview"/>: a document can no longer report
 /// 100% recall while silently missing content. Accompanied by a <see cref="Notice"/>.
 /// </param>
