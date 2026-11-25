@@ -72,7 +72,9 @@ public interface IScanUpscaler
 {
     /// <param name="image">The rendered page raster.</param>
     /// <param name="factor">Linear scale factor; values ≤ 1 are a no-op.</param>
-    /// <returns>The upscaled page (or the original when no upscale is warranted).</returns>
+    /// <returns>The upscaled page (or the original when no upscale is warranted). Implementations
+    /// keep the input's nominal DPI; DocumentProcessor derives the actual DPI from the width change
+    /// for <see cref="PageResult.Dpi"/> and <see cref="IFormFieldExtractor"/>.</returns>
     PageImage Upscale(PageImage image, float factor);
 }
 
@@ -84,7 +86,9 @@ public interface IFormFieldExtractor
 {
     /// <param name="pdf">The PDF file contents.</param>
     /// <param name="pageNumber">1-based page number.</param>
-    /// <param name="image">The rendered page (carries DPI and size for coordinate mapping).</param>
+    /// <param name="image">The page raster the lines live in (carries DPI and size for coordinate
+    /// mapping). Its DPI is the raster's actual DPI, also on an upscaled page: DocumentProcessor
+    /// replaces the nominal DPI that upscalers keep.</param>
     /// <param name="lines">The page's recognized text lines (OCR or text-layer), for geometric fallback.</param>
     /// <returns>The extracted fields; empty when none are found.</returns>
     IReadOnlyList<FormField> Extract(

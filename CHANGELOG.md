@@ -11,6 +11,9 @@
   (`UpscaleLowResolutionScans`, or the low-resolution retry). It used to keep the render DPI, so
   `WidthPx / Dpi` and any coordinate conversion were off by the upscale factor on those pages. The
   `dpi` field in the JSON output changes the same way.
+- With `ExtractFormFields` on, a form-field extractor now gets the upscaled raster's DPI on an upscaled
+  page. It used to get the render DPI, so `WidgetFormFieldExtractor` drew widget boxes smaller by the
+  upscale factor and could pair a value with the wrong printed label, or with none.
 
 ## 1.8.1 — 2026-07-21 (complete the 1.8.0 release)
 

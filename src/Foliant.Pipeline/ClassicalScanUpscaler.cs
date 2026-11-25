@@ -38,6 +38,8 @@ public sealed class ClassicalScanUpscaler : IScanUpscaler
 
         // Dpi is preserved: it is the nominal render DPI, and downstream geometry lives in the
         // (now larger) pixel space regardless. EffectiveDpi already records the true source quality.
+        // DocumentProcessor derives the raster's actual DPI from the size change and reports it in
+        // PageResult.Dpi and to IFormFieldExtractor, which map pixels to PDF points with it.
         return SkiaInterop.ToPageImage(dst, image.Dpi);
     }
 }

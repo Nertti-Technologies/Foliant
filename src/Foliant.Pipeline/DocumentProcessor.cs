@@ -460,7 +460,14 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
         // AcroForm dictionary when present; geometric fallback (later) uses the page's lines.
         IReadOnlyList<FormField>? formFields = null;
         if (options.ExtractFormFields && _formFields is not null)
-            formFields = _formFields.Extract(pdf, pageNumber, image, lines);
+        {
+            // Upscalers keep the nominal PageImage.Dpi, but extractors map PDF points to pixels with it,
+            // so hand them the raster's actual DPI (the same value as PageResult.Dpi). Same pixel buffer.
+            var formImage = image.Dpi == renderDpi
+                ? image
+                : new PageImage(image.Width, image.Height, renderDpi, image.PixelsBgra8888);
+            formFields = _formFields.Extract(pdf, pageNumber, formImage, lines);
+        }
 
         // ── Template routing output ──────────────────────────────────────────
         // A matched page gets deterministic, label-bound fields plus an APPENDED template-field section.
