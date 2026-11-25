@@ -289,7 +289,14 @@ internal static class TableReclaimParityRunner
         {
             using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("pdftotext", "-v")
             { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false });
-            p!.WaitForExit(5000);
+            var output = p!.StandardOutput.ReadToEndAsync();
+            var error = p.StandardError.ReadToEndAsync();
+            if (!p.WaitForExit(5000))
+            {
+                p.Kill();
+                return false;
+            }
+            Task.WhenAll(output, error).GetAwaiter().GetResult();
             return true;
         }
         catch { return false; }
@@ -303,9 +310,15 @@ internal static class TableReclaimParityRunner
         psi.ArgumentList.Add("-l"); psi.ArgumentList.Add(page.ToString(CultureInfo.InvariantCulture));
         psi.ArgumentList.Add(pdf); psi.ArgumentList.Add("-");
         using var p = System.Diagnostics.Process.Start(psi)!;
-        string outp = p.StandardOutput.ReadToEnd();
-        p.WaitForExit(30000);
-        return outp;
+        var output = p.StandardOutput.ReadToEndAsync();
+        var error = p.StandardError.ReadToEndAsync();
+        if (!p.WaitForExit(30000))
+        {
+            p.Kill();
+            throw new TimeoutException("pdftotext did not exit within 30 seconds.");
+        }
+        Task.WhenAll(output, error).GetAwaiter().GetResult();
+        return output.GetAwaiter().GetResult();
     }
 
     /// <summary>Diagnostic: dump fast-lane (ZeroDep) vs Foliant-only text for one page + ZeroDep signals.</summary>

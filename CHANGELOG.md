@@ -11,6 +11,11 @@
   returns null, which leaves a custom renderer uncapped, so implement it in renderers that see
   untrusted PDFs. The cap does not cover an upscaler's internal buffers or an `ImageTransform`.
 
+### Changed
+- `ModelAsset` checks `FileName` (a bare file name) and `Sha256` (64 lower-case hex characters) when it
+  is built, including through `with`, and throws `ArgumentException`. Such assets already failed when
+  used; they now fail where they are made.
+
 ## 1.9.0 — 2026-11-25 (third-party notices, DPI and form-field fixes)
 
 Minor. Adds the shipped notices file and corrects the DPI reported for upscaled pages, which changes
