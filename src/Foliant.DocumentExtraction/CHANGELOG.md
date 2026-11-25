@@ -3,7 +3,7 @@
 Experimental preview line, versioned separately from Foliant (tags `docext-v*`). See ADR-0009 and
 API-STABILITY.md.
 
-## 0.1.0-preview.1 — unreleased
+## 0.1.0-preview.1 — 2026-11-25
 
 ### Added
 - `FoliantDocumentExtractionClient`: a local `DocumentExtractionClient` for PDFs, built on
