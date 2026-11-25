@@ -9,7 +9,7 @@ public class PdfInputTests
     [Fact]
     public async Task MissingFile_ReturnsShapedError()
     {
-        string path = Path.Combine(Path.GetTempPath(), $"foliant-missing-{Guid.NewGuid():N}.pdf");
+        string path = Path.Join(Path.GetTempPath(), $"foliant-missing-{Guid.NewGuid():N}.pdf");
 
         var input = await PdfInput.ReadAsync(path, new FoliantMcpOptions(), CancellationToken.None);
 
@@ -55,7 +55,7 @@ public class PdfInputTests
 
     private static string TempDir()
     {
-        string dir = Path.Combine(Path.GetTempPath(), $"foliant-mcp-{Guid.NewGuid():N}");
+        string dir = Path.Join(Path.GetTempPath(), $"foliant-mcp-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         return dir;
     }
@@ -63,7 +63,7 @@ public class PdfInputTests
     [Fact]
     public async Task PathWithANulCharacter_IsAShapedError()
     {
-        string path = Path.Combine(Path.GetTempPath(), "a\0b.pdf");
+        string path = Path.Join(Path.GetTempPath(), "a\0b.pdf");
         var input = await PdfInput.ReadAsync(path, new FoliantMcpOptions(), CancellationToken.None);
         Assert.Contains("must be absolute", input.Error);
     }
@@ -97,10 +97,10 @@ public class PdfInputTests
         string allowed = TempDir();
         try
         {
-            string link = Path.Combine(allowed, "net");
+            string link = Path.Join(allowed, "net");
             File.CreateSymbolicLink(link, "//203.0.113.1/share");
 
-            var input = await PdfInput.ReadAsync(Path.Combine(link, "x.pdf"), new FoliantMcpOptions { AllowedRoots = allowed },
+            var input = await PdfInput.ReadAsync(Path.Join(link, "x.pdf"), new FoliantMcpOptions { AllowedRoots = allowed },
                 CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
 
             Assert.Contains("Could not resolve the path", input.Error);
@@ -129,10 +129,10 @@ public class PdfInputTests
         string dir = TempDir();
         try
         {
-            string link = Path.Combine(dir, "net");
+            string link = Path.Join(dir, "net");
             File.CreateSymbolicLink(link, "//203.0.113.1/share");
 
-            var input = await PdfInput.ReadAsync(Path.Combine(link, "x.pdf"), new FoliantMcpOptions(), CancellationToken.None)
+            var input = await PdfInput.ReadAsync(Path.Join(link, "x.pdf"), new FoliantMcpOptions(), CancellationToken.None)
                 .WaitAsync(TimeSpan.FromSeconds(5));
 
             Assert.Contains("Could not resolve the path", input.Error);
@@ -150,13 +150,13 @@ public class PdfInputTests
         string dir = TempDir();
         try
         {
-            string inside = Path.Combine(dir, "inside"), other = Path.Combine(dir, "other");
+            string inside = Path.Join(dir, "inside"), other = Path.Join(dir, "other");
             File.CreateSymbolicLink(inside, "//203.0.113.1/share/sub");
             File.CreateSymbolicLink(other, "//203.0.113.2/x");
             IReadOnlyList<string> networkRoots = ["//203.0.113.1/share"];
 
-            PdfInput.RealPath(Path.Combine(inside, "a.pdf"), networkRoots);   // allowed: no throw
-            Assert.Throws<IOException>(() => PdfInput.RealPath(Path.Combine(other, "a.pdf"), networkRoots));
+            PdfInput.RealPath(Path.Join(inside, "a.pdf"), networkRoots);   // allowed: no throw
+            Assert.Throws<IOException>(() => PdfInput.RealPath(Path.Join(other, "a.pdf"), networkRoots));
         }
         finally
         {
@@ -170,7 +170,7 @@ public class PdfInputTests
         string allowed = TempDir(), other = TempDir();
         try
         {
-            var input = await PdfInput.ReadAsync(Path.Combine(other, "missing.pdf"),
+            var input = await PdfInput.ReadAsync(Path.Join(other, "missing.pdf"),
                 new FoliantMcpOptions { AllowedRoots = allowed }, CancellationToken.None);
 
             Assert.Contains("outside the folders", input.Error);   // not "File not found": no existence answer
@@ -215,7 +215,7 @@ public class PdfInputTests
         string dir = TempDir();
         try
         {
-            string path = Path.Combine(dir, "big.pdf");
+            string path = Path.Join(dir, "big.pdf");
             await File.WriteAllBytesAsync(path, [.. MinimalHeader, .. new byte[2048]]);
 
             var input = await PdfInput.ReadAsync(path, new FoliantMcpOptions { MaxInputBytes = 1024 }, CancellationToken.None);
@@ -234,7 +234,7 @@ public class PdfInputTests
         string dir = TempDir();
         try
         {
-            string path = Path.Combine(dir, "late.pdf");
+            string path = Path.Join(dir, "late.pdf");
             await File.WriteAllBytesAsync(path, [.. new byte[1024], .. MinimalHeader]);
 
             var input = await PdfInput.ReadAsync(path, new FoliantMcpOptions(), CancellationToken.None);
@@ -253,7 +253,7 @@ public class PdfInputTests
         string dir = TempDir();
         try
         {
-            string path = Path.Combine(dir, "junk.pdf");
+            string path = Path.Join(dir, "junk.pdf");
             await File.WriteAllBytesAsync(path, [.. new byte[100], .. MinimalHeader]);
 
             var input = await PdfInput.ReadAsync(path, new FoliantMcpOptions(), CancellationToken.None);
@@ -273,7 +273,7 @@ public class PdfInputTests
         string allowed = TempDir(), other = TempDir();
         try
         {
-            string inside = Path.Combine(allowed, "a.pdf"), outside = Path.Combine(other, "b.pdf");
+            string inside = Path.Join(allowed, "a.pdf"), outside = Path.Join(other, "b.pdf");
             await File.WriteAllBytesAsync(inside, MinimalHeader);
             await File.WriteAllBytesAsync(outside, MinimalHeader);
             var options = new FoliantMcpOptions { AllowedRoots = allowed };
@@ -297,17 +297,17 @@ public class PdfInputTests
         string allowed = TempDir(), other = TempDir();
         try
         {
-            string target = Path.Combine(other, "secret.pdf");
+            string target = Path.Join(other, "secret.pdf");
             await File.WriteAllBytesAsync(target, MinimalHeader);
-            string link = Path.Combine(allowed, "link.pdf");
-            string dirLink = Path.Combine(allowed, "dir");
+            string link = Path.Join(allowed, "link.pdf");
+            string dirLink = Path.Join(allowed, "dir");
             if (!TryCreateLinks(() => File.CreateSymbolicLink(link, target), () => Directory.CreateSymbolicLink(dirLink, other)))
                 return;
             var options = new FoliantMcpOptions { AllowedRoots = allowed };
 
             var viaFile = await PdfInput.ReadAsync(link, options, CancellationToken.None);
-            var viaDir = await PdfInput.ReadAsync(Path.Combine(dirLink, "secret.pdf"), options, CancellationToken.None);
-            var viaDotDot = await PdfInput.ReadAsync(Path.Combine(allowed, "..", Path.GetFileName(other), "secret.pdf"), options, CancellationToken.None);
+            var viaDir = await PdfInput.ReadAsync(Path.Join(dirLink, "secret.pdf"), options, CancellationToken.None);
+            var viaDotDot = await PdfInput.ReadAsync(Path.Join(allowed, "..", Path.GetFileName(other), "secret.pdf"), options, CancellationToken.None);
 
             Assert.Contains("outside the folders", viaFile.Error);
             Assert.Contains("outside the folders", viaDir.Error);
@@ -326,9 +326,9 @@ public class PdfInputTests
         string dir = TempDir();
         try
         {
-            string path = Path.Combine(dir, "a.pdf");
+            string path = Path.Join(dir, "a.pdf");
             await File.WriteAllBytesAsync(path, MinimalHeader);
-            var options = new FoliantMcpOptions { AllowedRoots = "relative/dir" + Path.PathSeparator + Path.Combine(dir, "missing") };
+            var options = new FoliantMcpOptions { AllowedRoots = "relative/dir" + Path.PathSeparator + Path.Join(dir, "missing") };
 
             var input = await PdfInput.ReadAsync(path, options, CancellationToken.None);
 
@@ -346,7 +346,7 @@ public class PdfInputTests
         string dir = TempDir();
         try
         {
-            string a = Path.Combine(dir, "a"), b = Path.Combine(dir, "b");
+            string a = Path.Join(dir, "a"), b = Path.Join(dir, "b");
             if (!TryCreateLinks(() => File.CreateSymbolicLink(a, b), () => File.CreateSymbolicLink(b, a)))
                 return;
             Assert.Throws<IOException>(() => PdfInput.RealPath(a));
@@ -364,7 +364,7 @@ public class PdfInputTests
         string dir = TempDir();
         try
         {
-            string fifo = Path.Combine(dir, "pipe.pdf");
+            string fifo = Path.Join(dir, "pipe.pdf");
             using (var mk = System.Diagnostics.Process.Start("mkfifo", fifo)) mk.WaitForExit();
 
             var input = await PdfInput.ReadAsync(fifo, new FoliantMcpOptions(), CancellationToken.None)
@@ -380,8 +380,8 @@ public class PdfInputTests
 
     [Fact]
     public void IsInside_DoesNotMatchASiblingWithTheSamePrefix() =>
-        Assert.False(PdfInput.IsInside(Path.Combine(Path.GetTempPath(), "docs-private", "a.pdf"),
-                                       Path.Combine(Path.GetTempPath(), "docs")));
+        Assert.False(PdfInput.IsInside(Path.Join(Path.GetTempPath(), "docs-private", "a.pdf"),
+                                       Path.Join(Path.GetTempPath(), "docs")));
 
     [Fact]
     public async Task Cancellation_PropagatesInsteadOfBecomingAnError()
