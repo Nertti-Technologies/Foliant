@@ -10,8 +10,9 @@ that tag on `main`'s HEAD itself, after verifying it matches the CHANGELOG.
 1. **Land the release on `main` via PR** (the `main` ruleset requires a PR):
    - Add a `## X.Y.Z — …` entry at the **top** of `CHANGELOG.md`, plus the code/docs for the release.
    - **Update `README.md` for every release:** add a `Shipped in X.Y.Z:` entry at the top of the Roadmap
-     section (for a `Foliant.DocumentExtraction` preview, update its `Current preview: **X.Y.Z-preview.N**`
-     line instead).
+     section, and for a `Foliant.DocumentExtraction` preview update its `Current preview: **X.Y.Z-preview.N**`
+     line. A preview is released from the main release's tagged commit, so when one PR ships both, it
+     updates **both** lines; otherwise the preview cannot be released without another main release.
    - Open a PR, let checks pass, merge to `main`.
 2. **Cut the release** — either:
    - **GitHub UI:** Actions → **“Release to nuget.org”** → **Run workflow** → Branch `main`, Version `X.Y.Z`.

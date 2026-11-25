@@ -53,7 +53,7 @@ jobs:
       CHANGELOG: ${{ inputs.package == 'docext' && 'src/Foliant.DocumentExtraction/CHANGELOG.md' || 'CHANGELOG.md' }}
       PACK_TARGET: ${{ inputs.package == 'docext' && 'src/Foliant.DocumentExtraction/Foliant.DocumentExtraction.csproj' || 'Foliant.sln' }}
       PACK_DOCEXT: ${{ inputs.package == 'docext' && 'true' || 'false' }}
-      README_MARKER: "${{ inputs.package == 'docext' && 'Current preview: **' || 'Shipped in ' }}${{ inputs.version }}"
+      README_MARKER: "${{ inputs.package == 'docext' && 'Current preview: **' || 'Shipped in ' }}${{ inputs.version }}${{ inputs.package == 'docext' && '**' || ':' }}"
     permissions:
       id-token: write   # GitHub OIDC token for NuGet Trusted Publishing
       contents: write   # push the release tag + create the GitHub Release
@@ -82,8 +82,10 @@ jobs:
           test "$TOP" = "$VER" \
             || { echo "::error::Top $CHANGELOG entry is '$TOP', not '$VER'. Land the '## $VER' entry on main first."; exit 1; }
 
-      # Every release updates the README: the main line adds a "Shipped in X.Y.Z" Roadmap entry, the
-      # docext line updates its "Current preview: **X.Y.Z-preview.N**" line.
+      # Every release updates the README: the main line adds a "Shipped in X.Y.Z:" Roadmap entry, the
+      # docext line updates its "Current preview: **X.Y.Z-preview.N**" line. The trailing ":" / "**" stop
+      # 1.9.1 matching an existing 1.9.10. A docext release runs from the main release's tagged commit,
+      # so a release PR shipping both lines must update both README lines.
       - name: Guard — README describes this release
         run: |
           grep -qF -- "$README_MARKER" README.md \
