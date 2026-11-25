@@ -19,6 +19,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Foliant.Mcp.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Foliant.Pipeline\Foliant.Pipeline.csproj" />
     <ProjectReference Include="..\Foliant.Templates\Foliant.Templates.csproj" />
     <ProjectReference Include="..\Foliant.Orchestration\Foliant.Orchestration.csproj" />

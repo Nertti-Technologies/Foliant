@@ -201,6 +201,9 @@ the stdio JSON-RPC stream.
 (`Microsoft.Extensions.DocumentExtraction`), so code written against `DocumentExtractionClient`
 can extract PDFs locally, with no service and no network calls at extraction time.
 
+Current preview: **0.1.0-preview.1**, built on Foliant 1.9.0. Install it with
+`dotnet add package Foliant.DocumentExtraction --prerelease`.
+
 ```csharp
 #pragma warning disable FOLIANT0001, MEDE0001, EXTEXP0019 // preview APIs
 using var client = await FoliantDocumentExtractionClient.CreateDefaultAsync();
@@ -463,6 +466,16 @@ breaking it now requires a 2.0. 1.0 is a stability commitment over the proven, m
 (Gates 1–8, 99.7% reference recall, in production use) — not a new feature. The parked roadmap
 below (GPU/ML super-res, ML form understanding, post-OCR LM correction, multilingual OCR, more
 `Foliant.Forms.*` packs) all lands additively on top of the frozen contract.
+
+Shipped in 1.9.0: every package now carries **`THIRD-PARTY-NOTICES.txt`** (the licence and
+attribution texts of its dependencies and of the models downloaded at runtime), and packing fails if it
+is out of date. **DPI and geometry fixes for upscaled and rotated scans:** `PageResult.Dpi` now describes
+the raster the page's coordinates are in (it kept the render DPI after an upscale); the upscalers report
+the DPI of the raster they return; and form fields on upscaled or rotated scans are placed and labelled
+correctly. Model asset file names that would resolve outside the model cache are rejected. ZeroDep 2.2.0;
+the build moves to the .NET 11 SDK while packages still target `net10.0`. New alongside it, on its own
+preview line: **`Foliant.DocumentExtraction` 0.1.0-preview.1**, the local provider for the .NET
+document-extraction preview ([above](#microsoftextensionsdocumentextraction-provider-experimental)).
 
 Shipped in 1.8.1: an **MCP server** (`Foliant.Mcp`, in-repo — run from source) so any MCP client can
 drive the fully-local pipeline conversationally (run-ticket extraction, form fields, template matching,

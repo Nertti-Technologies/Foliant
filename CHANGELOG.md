@@ -2,11 +2,33 @@
 
 ## Unreleased
 
+### Security
+- MCP server (`Foliant.Mcp`, not packaged): tool calls now check a PDF path before reading it. The path
+  must be absolute; files over `Foliant__MaxInputBytes` (default 512 MiB) or without a `%PDF-` header in
+  the first 1,024 bytes are refused; error replies no longer include exception messages. The new
+  `Foliant__AllowedRoots` option limits reads to listed folders: the path as written is checked before
+  the file system is touched, then its real path with symbolic links resolved. It is opt-in, and the
+  server logs a startup warning when it is unset. Windows device paths (`\\?\`, `\\.\`) are refused,
+  and so are network paths (`\\host\share`, `//host/share`) and links to them, unless
+  `Foliant__AllowedRoots` lists a network root: reading one makes Windows authenticate to that host.
+
 ### Added
 - `PageFrame` and a new `IFormFieldExtractor.Extract` overload that takes it (a default interface
   method, so existing extractors keep working). It says how a scanned page's final raster was turned
   upright and deskewed from the page as rendered; `PageFrame.FromRendered` maps a box computed from PDF
   coordinates onto that raster.
+- `ProcessingOptions.MaxPagePixels` (default 100 million) bounds every page raster. A page too large
+  for `Dpi` renders at the highest DPI that fits (reported in `PageResult.Dpi`, with a `Notice`; an
+  OCR-routed page below half the requested DPI is also flagged `NeedsReview`), and an upscale that
+  would exceed it is skipped. A page too large even at 1 DPI is not rendered: it comes back empty
+  with a `Notice` and `NeedsReview`. `IPageRenderer.GetPageSize` supplies the page size; its default
+  returns null, which leaves a custom renderer uncapped, so implement it in renderers that see
+  untrusted PDFs. The cap does not cover an upscaler's internal buffers or an `ImageTransform`.
+
+### Changed
+- `ModelAsset` checks `FileName` (a bare file name) and `Sha256` (64 lower-case hex characters) when it
+  is built, including through `with`, and throws `ArgumentException`. Such assets already failed when
+  used; they now fail where they are made.
 
 ### Fixed
 - Form fields on scanned pages the orientation detector turned (a regression in 1.9.0): extractors

@@ -25,6 +25,24 @@ public sealed record ProcessingOptions
     public int Dpi { get; init; } = 300;
 
     /// <summary>
+    /// Largest page raster, in pixels, the pipeline produces: the render, the retry re-render and the
+    /// output of an upscale. A page whose render at <see cref="Dpi"/> would exceed it is rendered at
+    /// the highest DPI that fits, with a <see cref="PageResult.Notice"/> naming that DPI; a page too
+    /// large even at 1 DPI is not rendered and comes back empty with a notice and
+    /// <see cref="PageResult.NeedsReview"/>. An upscale whose output would exceed it is skipped. A page
+    /// whose characters come from pixels and was rendered below half of <see cref="Dpi"/> is flagged
+    /// <see cref="PageResult.NeedsReview"/>. Bounds a hostile page size: one BGRA copy is 4 bytes per
+    /// pixel (400 MB at the default). Not covered: buffers inside an <see cref="IScanUpscaler"/>
+    /// (the ONNX super-resolution upscaler limits its own to 1 GiB) or an
+    /// <see cref="ProcessingOptions.ImageTransform"/>, and renderers that do not report a page size
+    /// (<see cref="IPageRenderer.GetPageSize"/>). Default 100 million, an estimate: it leaves Letter
+    /// and A4 untouched up to 600 DPI and A0 at about 250 DPI. Range 1 million (an estimate: Letter
+    /// at about 110 DPI) to 536,870,897 (Array.MaxLength / 4, the most BGRA pixels one
+    /// <see cref="PageImage"/> buffer can hold).
+    /// </summary>
+    public long MaxPagePixels { get; init; } = 100_000_000;
+
+    /// <summary>
     /// Effective source resolution (DPI) below which an OCR-routed (scanned) page is flagged
     /// <see cref="PageResult.LowResolution"/>. The effective DPI is the native pixel size of the
     /// page's dominant scan image relative to its physical size on the page — not the render

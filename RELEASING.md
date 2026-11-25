@@ -9,6 +9,10 @@ that tag on `main`'s HEAD itself, after verifying it matches the CHANGELOG.
 
 1. **Land the release on `main` via PR** (the `main` ruleset requires a PR):
    - Add a `## X.Y.Z — …` entry at the **top** of `CHANGELOG.md`, plus the code/docs for the release.
+   - **Update `README.md` for every release:** add a `Shipped in X.Y.Z:` entry at the top of the Roadmap
+     section, and for a `Foliant.DocumentExtraction` preview update its `Current preview: **X.Y.Z-preview.N**`
+     line. A preview is released from the main release's tagged commit, so when one PR ships both, it
+     updates **both** lines; otherwise the preview cannot be released without another main release.
    - Open a PR, let checks pass, merge to `main`.
 2. **Cut the release** — either:
    - **GitHub UI:** Actions → **“Release to nuget.org”** → **Run workflow** → Branch `main`, Version `X.Y.Z`.
@@ -25,6 +29,8 @@ tests, and packs **without** tagging or publishing.
 - **Runs from `main` only** — won’t release off a feature branch.
 - **Version must equal the top `CHANGELOG.md` entry** — if you type `1.4.0` but the changelog tops out at
   `1.3.1`, it stops *before* building. (This is the exact check that would have caught the 1.3.0 misfire.)
+- **README describes the release** — `Shipped in X.Y.Z` (or the docext `Current preview` line) must be in
+  `README.md`, so the README never lags the published version.
 - **Tag must not already exist** — NuGet versions are immutable; bump to the next version instead.
 - **Tag is created only after build + test pass** — a failing test never leaves a dangling tag.
 

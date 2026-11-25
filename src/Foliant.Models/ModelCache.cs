@@ -30,15 +30,6 @@ public sealed class ModelCache
 
     public string CacheDirectory { get; }
 
-    // A bare name, also by Windows rules: no separators or drive/stream colon, and no trailing dot or
-    // space (Windows strips them, so "..." would name the cache directory itself).
-    private static bool IsPlainFileName(string? fileName) =>
-        !string.IsNullOrWhiteSpace(fileName)
-        && fileName.IndexOfAny(['/', '\\', ':']) < 0
-        && !fileName.EndsWith('.') && !fileName.EndsWith(' ')
-        && Path.GetFileName(fileName) == fileName
-        && !Path.IsPathRooted(fileName);
-
     // The joined path (Path.Join never drops the directory, unlike Path.Combine with a rooted name),
     // after confirming its canonical form is inside the cache directory (defence in
     // depth behind IsPlainFileName). Returned as joined, so relative cache directories keep their form.
@@ -68,7 +59,7 @@ public sealed class ModelCache
         ArgumentNullException.ThrowIfNull(asset);
         // The file name is joined onto the cache directory and the result may be written or deleted,
         // so it must be a bare name: a rooted or "../" name would act outside the cache.
-        if (!IsPlainFileName(asset.FileName))
+        if (!ModelAssetFileName.IsPlainFileName(asset.FileName))
             throw new ArgumentException(
                 $"Model asset '{asset.Id}' has an invalid file name; expected a bare file name with no directory part.",
                 nameof(asset));
