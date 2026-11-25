@@ -1,7 +1,8 @@
 # Publishes Foliant packages to nuget.org via Trusted Publishing (OIDC — no stored API keys).
 #
 # ── ONE-BUTTON RELEASE — you never tag by hand ──────────────────────────────────────────────
-#  1. Land the release on `main` via PR: a `## X.Y.Z — …` entry at the TOP of CHANGELOG.md, plus the code.
+#  1. Land the release on `main` via PR: a `## X.Y.Z — …` entry at the TOP of CHANGELOG.md, the README
+#     update (a "Shipped in X.Y.Z" Roadmap entry; for docext, the "Current preview" line), plus the code.
 #  2. GitHub → Actions → "Release to nuget.org" → Run workflow → Branch: main, Version: X.Y.Z.
 #
 # The workflow VERIFIES the typed version equals the top CHANGELOG entry, builds, tests, and only then
@@ -52,6 +53,7 @@ jobs:
       CHANGELOG: ${{ inputs.package == 'docext' && 'src/Foliant.DocumentExtraction/CHANGELOG.md' || 'CHANGELOG.md' }}
       PACK_TARGET: ${{ inputs.package == 'docext' && 'src/Foliant.DocumentExtraction/Foliant.DocumentExtraction.csproj' || 'Foliant.sln' }}
       PACK_DOCEXT: ${{ inputs.package == 'docext' && 'true' || 'false' }}
+      README_MARKER: "${{ inputs.package == 'docext' && 'Current preview: **' || 'Shipped in ' }}${{ inputs.version }}${{ inputs.package == 'docext' && '**' || ':' }}"
     permissions:
       id-token: write   # GitHub OIDC token for NuGet Trusted Publishing
       contents: write   # push the release tag + create the GitHub Release
@@ -79,6 +81,15 @@ jobs:
           echo "Top $CHANGELOG entry = '$TOP'   requested = '$VER'"
           test "$TOP" = "$VER" \
             || { echo "::error::Top $CHANGELOG entry is '$TOP', not '$VER'. Land the '## $VER' entry on main first."; exit 1; }
+
+      # Every release updates the README: the main line adds a "Shipped in X.Y.Z:" Roadmap entry, the
+      # docext line updates its "Current preview: **X.Y.Z-preview.N**" line. The trailing ":" / "**" stop
+      # 1.9.1 matching an existing 1.9.10. A docext release runs from the main release's tagged commit,
+      # so a release PR shipping both lines must update both README lines.
+      - name: Guard — README describes this release
+        run: |
+          grep -qF -- "$README_MARKER" README.md \
+            || { echo "::error::README.md has no '$README_MARKER'. Update the README for this release first."; exit 1; }
 
       - name: Guard — tag must not already exist (NuGet versions are immutable)
         run: |
