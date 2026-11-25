@@ -467,6 +467,15 @@ breaking it now requires a 2.0. 1.0 is a stability commitment over the proven, m
 below (GPU/ML super-res, ML form understanding, post-OCR LM correction, multilingual OCR, more
 `Foliant.Forms.*` packs) all lands additively on top of the frozen contract.
 
+Shipped in 1.10.0: **form fields on scanned pages turned upright are fixed** (in 1.9.0 the row-based
+extractors got the page's text turned back to its scanned orientation and paired labels wrongly). Form
+fields on turned or deskewed scans now line up with the page's text through the new `PageFrame`. A new
+**page pixel cap**, `ProcessingOptions.MaxPagePixels` (default 100 million pixels), keeps a PDF that
+declares a huge page from forcing huge rasters: such a page renders at a lower DPI, or is flagged for
+review when it cannot render at all. The MCP server now checks every PDF path before reading it (size,
+`%PDF-` header, optional allowed folders, no network or device paths), and `ModelAsset` validates its
+file name and checksum when it is created.
+
 Shipped in 1.9.0: every package now carries **`THIRD-PARTY-NOTICES.txt`** (the licence and
 attribution texts of its dependencies and of the models downloaded at runtime), and packing fails if it
 is out of date. **DPI and geometry fixes for upscaled and rotated scans:** `PageResult.Dpi` now describes
