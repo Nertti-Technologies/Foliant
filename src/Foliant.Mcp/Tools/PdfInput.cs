@@ -9,7 +9,9 @@ namespace Foliant.Mcp.Tools;
 /// <remarks>
 /// The path comes from the MCP client, which acts on prompts that may contain document text, so it is
 /// treated as untrusted input (ADR-0010 T4). Checks, in order, before the file is read: the path is
-/// absolute and not a Windows device path (<c>\\?\</c>, <c>\\.\</c>); with
+/// absolute and not a Windows device path (<c>\\?\</c>, <c>\\.\</c>); it is not a network path
+/// (<c>\\host\share</c>, <c>//host/share</c>) unless a root is one, and no symbolic link along it
+/// leads to a device or to a network path outside those roots; with
 /// <see cref="FoliantMcpOptions.AllowedRoots"/> set, the path as written is inside a root (checked as
 /// text, so a UNC or automounted path outside the roots is refused before the file system is touched)
 /// and so is its real path (every symbolic link resolved); it is at least as long as the signature and no larger than
@@ -40,7 +42,8 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
         var roots = Roots(options);
         // Network paths (UNC on Windows, //host) make the OS connect and, on Windows, authenticate to
         // that host: allowed only when a configured root is itself a network path (ADR-0010 T4).
-        bool networkAllowed = roots?.Any(root => IsNetworkPath(root.Configured) || IsNetworkPath(root.Real)) ?? false;
+        var networkRoots = roots?.SelectMany(root => new[] { root.Configured, root.Real }).Where(IsNetworkPath).ToList() ?? [];
+        bool networkAllowed = networkRoots.Count > 0;
         if (!networkAllowed && IsNetworkPath(path))
             return Failed($"Network paths are not accepted unless Foliant__AllowedRoots lists one: {path}");
 
@@ -52,7 +55,7 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
             full = Path.GetFullPath(path);
             if (roots is not null && !roots.Any(root => IsInside(full, root.Configured) || IsInside(full, root.Real)))
                 return OutsideRoots(path);
-            real = RealPath(full, refuseNetworkLinks: !networkAllowed);
+            real = RealPath(full, networkRoots);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
@@ -156,10 +159,10 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
     /// <summary>
     /// The canonical path with every symbolic link resolved, component by component (a link to a
     /// directory part way along would otherwise hide where the file really is). Throws
-    /// <see cref="IOException"/> on a link loop and, with <paramref name="refuseNetworkLinks"/>, on a
-    /// link to a network or device path, before that target is touched.
+    /// <see cref="IOException"/> on a link loop and, when <paramref name="networkRoots"/> is given, on a
+    /// link to a device path or to a network path outside those roots, before that target is touched.
     /// </summary>
-    internal static string RealPath(string path, bool refuseNetworkLinks = false)
+    internal static string RealPath(string path, IReadOnlyList<string>? networkRoots = null)
     {
         string full = Path.GetFullPath(path);
         string root = Path.GetPathRoot(full)!;
@@ -178,8 +181,9 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
             }
 
             if (++hops > MaxLinkHops) throw new IOException("Too many symbolic links.");
-            if (refuseNetworkLinks && (IsNetworkPath(target) || IsDevicePath(target)))
-                throw new IOException("A symbolic link points to a network or device path.");
+            if (networkRoots is not null
+                && (IsDevicePath(target) || (IsNetworkPath(target) && !networkRoots.Any(root => IsInside(target, root)))))
+                throw new IOException("A symbolic link points to a device path or a network path outside the allowed roots.");
             string resolved = Path.GetFullPath(target, current);
             string resolvedRoot = Path.GetPathRoot(resolved)!;
             // Restart from the link's target, then continue with the remaining components.

@@ -144,7 +144,46 @@ public class PdfInputTests
     }
 
     [Fact]
-    public async Task PathOutsideTheRoots_IsRefusedAsText_BeforeItIsResolved()
+    public void LinkToANetworkPath_IsFollowedOnlyIntoAConfiguredNetworkRoot()
+    {
+        if (OperatingSystem.IsWindows()) return;   // on POSIX "//host" is a local path, so nothing connects
+        string dir = TempDir();
+        try
+        {
+            string inside = Path.Combine(dir, "inside"), other = Path.Combine(dir, "other");
+            File.CreateSymbolicLink(inside, "//203.0.113.1/share/sub");
+            File.CreateSymbolicLink(other, "//203.0.113.2/x");
+            IReadOnlyList<string> networkRoots = ["//203.0.113.1/share"];
+
+            PdfInput.RealPath(Path.Combine(inside, "a.pdf"), networkRoots);   // allowed: no throw
+            Assert.Throws<IOException>(() => PdfInput.RealPath(Path.Combine(other, "a.pdf"), networkRoots));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task LocalPathOutsideTheRoots_IsRefused()
+    {
+        string allowed = TempDir(), other = TempDir();
+        try
+        {
+            var input = await PdfInput.ReadAsync(Path.Combine(other, "missing.pdf"),
+                new FoliantMcpOptions { AllowedRoots = allowed }, CancellationToken.None);
+
+            Assert.Contains("outside the folders", input.Error);   // not "File not found": no existence answer
+        }
+        finally
+        {
+            Directory.Delete(allowed, recursive: true);
+            Directory.Delete(other, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task NetworkPathOutsideTheRoots_IsRefused_BeforeItIsResolved()
     {
         string allowed = TempDir();
         try

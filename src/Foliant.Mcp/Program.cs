@@ -41,7 +41,7 @@ var app = builder.Build();
 if (string.IsNullOrWhiteSpace(app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<FoliantMcpOptions>>().Value.AllowedRoots))
 {
     app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Foliant.Mcp").LogWarning(
-        "Foliant__AllowedRoots is not set: tools may read any PDF this user can read. Set it to restrict them.");
+        "Foliant__AllowedRoots is not set: tools may read any local PDF this user can read. Set it to restrict them.");
 }
 
 await app.RunAsync();
