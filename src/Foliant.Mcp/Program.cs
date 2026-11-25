@@ -34,4 +34,14 @@ builder.Services
     .WithStdioServerTransport()
     .WithToolsFromAssembly();
 
-await builder.Build().RunAsync();
+var app = builder.Build();
+
+// ADR-0010 T4: without AllowedRoots, tools may read any file the server's user can. Say so once, on
+// stderr, without naming any path.
+if (string.IsNullOrWhiteSpace(app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<FoliantMcpOptions>>().Value.AllowedRoots))
+{
+    app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Foliant.Mcp").LogWarning(
+        "Foliant__AllowedRoots is not set: tools may read any PDF this user can read. Set it to restrict them.");
+}
+
+await app.RunAsync();

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Security
+- MCP server (`Foliant.Mcp`, not packaged): tool calls now check a PDF path before reading it. The path
+  must be absolute; files over `Foliant__MaxInputBytes` (default 512 MiB) or without a `%PDF-` header in
+  the first 1,024 bytes are refused; error replies no longer include exception messages. The new
+  `Foliant__AllowedRoots` option limits reads to listed folders (symbolic links resolved). It is opt-in,
+  and the server logs a startup warning when it is unset.
+
 ## 1.9.0 — 2026-11-25 (third-party notices, DPI and form-field fixes)
 
 Minor. Adds the shipped notices file and corrects the DPI reported for upscaled pages, which changes

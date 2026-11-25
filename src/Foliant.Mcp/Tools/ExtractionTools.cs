@@ -35,7 +35,7 @@ public static class ExtractionTools
         int maxPages = 0,
         CancellationToken cancellationToken = default)
     {
-        var input = await PdfInput.ReadAsync(path, cancellationToken).ConfigureAwait(false);
+        var input = await PdfInput.ReadAsync(path, options.Value, cancellationToken).ConfigureAwait(false);
         if (input.Error is not null) return input.Error;
         byte[] pdf = input.Bytes;
         int totalPages = input.TotalPages;
@@ -174,7 +174,7 @@ public static class ExtractionTools
         bool extractHardwareSpecs = false,
         CancellationToken cancellationToken = default)
     {
-        var input = await PdfInput.ReadAsync(path, cancellationToken).ConfigureAwait(false);
+        var input = await PdfInput.ReadAsync(path, options.Value, cancellationToken).ConfigureAwait(false);
         if (input.Error is not null) return input.Error;
         byte[] pdf = input.Bytes;
         int totalPages = input.TotalPages;
