@@ -264,6 +264,8 @@ public sealed class DefaultPagePreprocessor : IPagePreprocessor
         }
     }
 
+    // Rotates about the centre and keeps the size: the PreprocessedPage.SkewCorrectedDegrees contract,
+    // which PageFrame.FromRendered applies to PDF-derived form-field geometry. Change both together.
     private static PageImage Rotate(PageImage page, float degrees)
     {
         using var src = SkiaInterop.ToBitmap(page);

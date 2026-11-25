@@ -7,7 +7,6 @@
 // characters come from wherever they're most trustworthy.
 
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Foliant.Internal;
 using UglyToad.PdfPig.Annotations;
 using UglyToad.PdfPig.Tokens;
@@ -263,6 +262,7 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
         int renderDpi = rasterDpi;        // actual DPI of the raster the page ends up using
         bool retried = false;             // the ADR-0004 retry ladder ran on this page
         string? recoveredVia = null;      // set when a retry rung's result was kept
+        float deskewDegrees = 0f;         // skew the preprocessor removed from the final raster
         IReadOnlyList<TextLine> lines;
         int imageLinesRecovered = 0;        // mixed page: OCR lines merged from embedded image content
         bool imageContentSuspected = false; // mixed-page probe fired on this fast-path page
@@ -317,11 +317,21 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
             // Pixel stages, re-runnable for the ADR-0004 retry ladder. Orientation is intentionally
             // NOT re-run in retries (it already ran; re-running quadruples thumbnail OCR cost for
             // no signal).
-            (PageImage Image, IReadOnlyList<TextLine> Lines) RunPixelStages(PageImage raster)
+            // Also returns the skew the preprocessor removed, for the form-field frame. A preprocessor
+            // that changed the size or reported a non-finite angle did not rotate per the
+            // PreprocessedPage contract, so its skew is not used.
+            (PageImage Image, IReadOnlyList<TextLine> Lines, float Skew) RunPixelStages(PageImage raster)
             {
+                float skew = 0f;
                 if (options.PreprocessScans && _preprocessor != null)
-                    raster = _preprocessor.Process(raster).Image;
-                return (raster, _ocr.Recognize(raster));
+                {
+                    var processed = _preprocessor.Process(raster);
+                    if (processed.Image.Width == raster.Width && processed.Image.Height == raster.Height
+                        && float.IsFinite(processed.SkewCorrectedDegrees))
+                        skew = processed.SkewCorrectedDegrees;
+                    raster = processed.Image;
+                }
+                return (raster, _ocr.Recognize(raster), skew);
             }
 
             var baseRaster = image;                       // post-orientation, pre-preprocess
@@ -393,6 +403,7 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
 
             image = best.Image;
             lines = best.Lines;
+            deskewDegrees = best.Skew;
         }
 
         // ── AcroForm/XFA field VALUES live in the field widgets, not the content-stream text the
@@ -467,7 +478,7 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
         // A template-routed page takes its fields from the template below, so extraction is skipped.
         IReadOnlyList<FormField>? formFields = null;
         if (options.ExtractFormFields && _formFields is not null && templated is null)
-            formFields = ExtractFormFields(_formFields, pdf, pageNumber, image, renderDpi, orientationApplied, lines);
+            formFields = ExtractFormFields(_formFields, pdf, pageNumber, image, renderDpi, orientationApplied, deskewDegrees, lines);
 
         // ── Template routing output ──────────────────────────────────────────
         // A matched page gets deterministic, label-bound fields plus an APPENDED template-field section.
@@ -547,80 +558,22 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
         SkiaInterop.ScaledDpi(dpi, before.Width, after.Width);
 
     /// <summary>
-    /// Runs the form-field extractor in the frame the page was rendered in. Extractors map PDF points
-    /// to raster pixels with the image's DPI and size: they get the raster at its actual DPI and, on a
-    /// page the orientation detector rotated, the raster and lines rotated back. The fields' bounds are
-    /// rotated forward into the raster the page's other geometry lives in. Not undone: a rotation by
-    /// <see cref="ProcessingOptions.ImageTransform"/> and the preprocessor's small-angle deskew.
-    /// Memory: on a rotated page the rotation back makes one exact copy of the final raster, held until
-    /// extraction returns. That raster may be upscaled: a Letter page rendered at 300 DPI and upscaled
-    /// 2x is 5100x6600 BGRA, 134.6 MB by arithmetic. Page size is not capped (as for every raster
-    /// stage), so the copy is as large as the largest raster the page already produced.
+    /// Runs the form-field extractor on the page's final raster (at its actual DPI) and lines, with the
+    /// frame saying how that raster was turned upright and deskewed from the page as rendered, so an
+    /// extractor that maps PDF coordinates can line them up with the lines. Not described by the frame:
+    /// a rotation applied by <see cref="ProcessingOptions.ImageTransform"/>, which a transform cannot
+    /// report. No raster is copied.
     /// </summary>
     internal static IReadOnlyList<FormField> ExtractFormFields(
         IFormFieldExtractor extractor, byte[] pdf, int pageNumber, PageImage image, int dpi,
-        int rotation, IReadOnlyList<TextLine> lines)
+        int orientation, float deskewDegrees, IReadOnlyList<TextLine> lines)
     {
         var atDpi = image.Dpi == dpi ? image : new PageImage(image.Width, image.Height, dpi, image.PixelsBgra8888);
-        if (rotation == 0)
-            return extractor.Extract(pdf, pageNumber, atDpi, lines);
-
-        var upright = RotateCardinal(atDpi, 360 - rotation);
-        var uprightLines = lines
-            .Select(l => l with { Bounds = RotateClockwise(l.Bounds, 360 - rotation, image.Width, image.Height) })
-            .ToList();
-        return extractor.Extract(pdf, pageNumber, upright, uprightLines)
-            .Select(f => f.Bounds is { } b
-                ? f with { Bounds = RotateClockwise(b, rotation, upright.Width, upright.Height) }
-                : f)
-            .ToList();
+        bool turned = orientation is 90 or 270;
+        var frame = new PageFrame(turned ? image.Height : image.Width, turned ? image.Width : image.Height,
+                                  orientation, deskewDegrees);
+        return extractor.Extract(pdf, pageNumber, atDpi, lines, frame);
     }
-
-    /// <summary>
-    /// Rotates a raster clockwise by <paramref name="degrees"/> (0/90/180/270), matching
-    /// <see cref="ScanDegrader.Rotate"/> on a cardinal angle.
-    /// </summary>
-    internal static PageImage RotateCardinal(PageImage image, int degrees)
-    {
-        // An exact pixel permutation into one new buffer (no resampling, no intermediate bitmaps),
-        // using the same mapping as RotateClockwise applied to each one-pixel box.
-        int d = ((degrees % 360) + 360) % 360;
-        if (d == 0) return image;
-        if (d is not (90 or 180 or 270))
-            throw new ArgumentOutOfRangeException(nameof(degrees), degrees, "Only 0, 90, 180 and 270 are supported.");
-
-        int w = image.Width, h = image.Height;
-        int dw = d == 180 ? w : h, dh = d == 180 ? h : w;
-        var pixels = new byte[image.PixelsBgra8888.Length];
-        var src = MemoryMarshal.Cast<byte, uint>(image.PixelsBgra8888.AsSpan());
-        var dst = MemoryMarshal.Cast<byte, uint>(pixels.AsSpan());
-        for (int y = 0; y < h; y++)
-        {
-            var row = src.Slice(y * w, w);
-            switch (d)
-            {
-                case 90: for (int x = 0; x < w; x++) dst[x * dw + (h - 1 - y)] = row[x]; break;
-                case 180: for (int x = 0; x < w; x++) dst[(h - 1 - y) * dw + (w - 1 - x)] = row[x]; break;
-                case 270: for (int x = 0; x < w; x++) dst[(w - 1 - x) * dw + y] = row[x]; break;
-            }
-        }
-
-        return new PageImage(dw, dh, image.Dpi, pixels);
-    }
-
-    /// <summary>
-    /// Maps a box in a <paramref name="width"/> x <paramref name="height"/> raster to the raster
-    /// rotated clockwise by <paramref name="degrees"/> (0/90/180/270), matching
-    /// <see cref="ScanDegrader.Rotate"/> on a cardinal angle.
-    /// </summary>
-    internal static BoundingBox RotateClockwise(BoundingBox b, int degrees, int width, int height) =>
-        (((degrees % 360) + 360) % 360) switch
-        {
-            90 => new BoundingBox(height - b.Y2, b.X1, height - b.Y1, b.X2),
-            180 => new BoundingBox(width - b.X2, height - b.Y2, width - b.X1, height - b.Y1),
-            270 => new BoundingBox(b.Y1, width - b.X2, b.Y2, width - b.X1),
-            _ => b,
-        };
 
     private static int CountWords(IReadOnlyList<TextLine> lines, float minConfidence = 0f) =>
         lines.Where(l => l.Confidence >= minConfidence)

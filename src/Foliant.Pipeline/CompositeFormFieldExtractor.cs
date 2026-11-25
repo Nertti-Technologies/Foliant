@@ -17,11 +17,16 @@ public sealed class CompositeFormFieldExtractor : IFormFieldExtractor
     }
 
     public IReadOnlyList<FormField> Extract(
-        byte[] pdf, int pageNumber, PageImage image, IReadOnlyList<TextLine> lines)
+        byte[] pdf, int pageNumber, PageImage image, IReadOnlyList<TextLine> lines) =>
+        Extract(pdf, pageNumber, image, lines, PageFrame.Of(image));
+
+    /// <remarks>Passes <paramref name="frame"/> to each extractor.</remarks>
+    public IReadOnlyList<FormField> Extract(
+        byte[] pdf, int pageNumber, PageImage image, IReadOnlyList<TextLine> lines, PageFrame frame)
     {
         foreach (var extractor in _extractors)
         {
-            var fields = extractor.Extract(pdf, pageNumber, image, lines);
+            var fields = extractor.Extract(pdf, pageNumber, image, lines, frame);
             if (fields.Count > 0) return fields;
         }
         return Array.Empty<FormField>();

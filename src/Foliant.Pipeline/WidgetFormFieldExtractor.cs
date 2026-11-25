@@ -18,10 +18,17 @@ namespace Foliant.Pipeline;
 public sealed class WidgetFormFieldExtractor : IFormFieldExtractor
 {
     public IReadOnlyList<FormField> Extract(
-        byte[] pdf, int pageNumber, PageImage image, IReadOnlyList<TextLine> lines)
+        byte[] pdf, int pageNumber, PageImage image, IReadOnlyList<TextLine> lines) =>
+        Extract(pdf, pageNumber, image, lines, PageFrame.Of(image));
+
+    /// <remarks>Widget boxes come from PDF points in the rendered page and are mapped through
+    /// <paramref name="frame"/> into the final raster, where the label lines are.</remarks>
+    public IReadOnlyList<FormField> Extract(
+        byte[] pdf, int pageNumber, PageImage image, IReadOnlyList<TextLine> lines, PageFrame frame)
     {
         ArgumentNullException.ThrowIfNull(pdf);
         ArgumentNullException.ThrowIfNull(image);
+        ArgumentNullException.ThrowIfNull(frame);
         var result = new List<FormField>();
         try
         {
@@ -39,7 +46,7 @@ public sealed class WidgetFormFieldExtractor : IFormFieldExtractor
 
                 var (value, kind) = ReadValue(ann.AnnotationDictionary);
                 if (value is null) continue;
-                var box = ToBox(ann.Rectangle, scale, pageH);
+                var box = frame.FromRendered(ToBox(ann.Rectangle, scale, pageH));
                 if (box.Width <= 0 || box.Height <= 0) continue;
                 widgets.Add((value, kind, box));
             }

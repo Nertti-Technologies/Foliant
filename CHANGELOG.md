@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `PageFrame` and a new `IFormFieldExtractor.Extract` overload that takes it (a default interface
+  method, so existing extractors keep working). It says how a scanned page's final raster was turned
+  upright and deskewed from the page as rendered; `PageFrame.FromRendered` maps a box computed from PDF
+  coordinates onto that raster.
+
+### Fixed
+- Form fields on scanned pages the orientation detector turned (a regression in 1.9.0): extractors
+  again get the final, upright raster and text lines. In 1.9.0 the lines were turned back to the
+  page as rendered, which broke the row-based extractors (geometric, LiLT) on those pages.
+- Widget form fields on turned or deskewed scanned pages now line up with the page's text:
+  `WidgetFormFieldExtractor` maps its widget boxes through the `PageFrame`, and `CompositeFormFieldExtractor`
+  passes the frame on. No raster copy is made for this any more.
+- `PreprocessedPage.SkewCorrectedDegrees` documents the rotation it reports (minus the angle, about the
+  centre, same size). A preprocessor that changes the size or reports a non-finite angle has its skew
+  ignored for the frame. A rotation applied by `ProcessingOptions.ImageTransform` is not described by
+  the frame.
+
 ## 1.9.0 — 2026-11-25 (third-party notices, DPI and form-field fixes)
 
 Minor. Adds the shipped notices file and corrects the DPI reported for upscaled pages, which changes
