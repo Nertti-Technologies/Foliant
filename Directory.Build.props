@@ -15,6 +15,15 @@
          scan. Rules switched off on purpose are listed with their reasons in .editorconfig. -->
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- NuGet vulnerability audit (ADR-0010 T7): a high or critical advisory against any dependency
+         (NU1903, NU1904) stays an error and blocks the build and any release. Low and moderate
+         advisories (NU1901, NU1902) are reported as warnings, so an advisory published against an
+         unchanged dependency does not block an unrelated fix release; they are triaged when seen.
+         NU1900 (the vulnerability data could not be fetched, e.g. offline) and NU1905 (an audit source
+         has no vulnerability data) also stay errors: the build fails closed rather than skip the audit. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902</WarningsNotAsErrors>
   </PropertyGroup>
 
   <!-- Package version is derived from the git tag by MinVer (configured in src/Directory.Build.props);
