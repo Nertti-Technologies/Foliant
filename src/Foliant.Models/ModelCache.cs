@@ -30,17 +30,37 @@ public sealed class ModelCache
 
     public string CacheDirectory { get; }
 
+    // A bare name, also by Windows rules: no separators or drive/stream colon, and no trailing dot or
+    // space (Windows strips them, so "..." would name the cache directory itself).
     private static bool IsPlainFileName(string? fileName) =>
         !string.IsNullOrWhiteSpace(fileName)
-        && fileName is not ("." or "..")
-        && fileName.IndexOfAny(['/', '\\']) < 0
+        && fileName.IndexOfAny(['/', '\\', ':']) < 0
+        && !fileName.EndsWith('.') && !fileName.EndsWith(' ')
         && Path.GetFileName(fileName) == fileName
         && !Path.IsPathRooted(fileName);
+
+    // The joined path, after confirming its canonical form is inside the cache directory (defence in
+    // depth behind IsPlainFileName). Returned as joined, so relative cache directories keep their form.
+    private string ContainedPath(ModelAsset asset)
+    {
+        string root = Path.GetFullPath(CacheDirectory);
+        if (!Path.EndsInDirectorySeparator(root)) root += Path.DirectorySeparatorChar;   // a root keeps its own
+        string path = Path.Combine(CacheDirectory, asset.FileName);
+        string full = Path.GetFullPath(path);
+        if (!full.StartsWith(root, StringComparison.Ordinal) || full.Length == root.Length)
+            throw new ArgumentException(
+                $"Model asset '{asset.Id}' resolves outside the model cache directory.", nameof(asset));
+        return path;
+    }
 
     /// <summary>
     /// Returns the local path of <paramref name="asset"/>, downloading and verifying it first
     /// when not already cached.
     /// </summary>
+    /// <exception cref="ArgumentException">The asset's file name is not a bare file name, or it
+    /// resolves outside <see cref="CacheDirectory"/>. Checked before the file system is touched.</exception>
+    /// <exception cref="InvalidOperationException">The asset could not be downloaded with a matching
+    /// SHA-256 after the retries.</exception>
     public async Task<string> GetPathAsync(
         ModelAsset asset, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -51,9 +71,9 @@ public sealed class ModelCache
             throw new ArgumentException(
                 $"Model asset '{asset.Id}' has an invalid file name; expected a bare file name with no directory part.",
                 nameof(asset));
+        string path = ContainedPath(asset);
         Directory.CreateDirectory(CacheDirectory);
 
-        string path = Path.Combine(CacheDirectory, asset.FileName);
         string marker = path + ".sha256-ok";
 
         if (File.Exists(path))
@@ -102,6 +122,8 @@ public sealed class ModelCache
     }
 
     /// <summary>Ensures every asset is cached; returns id → local path.</summary>
+    /// <exception cref="ArgumentException">An asset's file name is invalid (see <see cref="GetPathAsync"/>).</exception>
+    /// <exception cref="InvalidOperationException">An asset could not be downloaded and verified.</exception>
     public async Task<IReadOnlyDictionary<string, string>> GetPathsAsync(
         IEnumerable<ModelAsset> assets, IProgress<(string Id, double Fraction)>? progress = null,
         CancellationToken cancellationToken = default)

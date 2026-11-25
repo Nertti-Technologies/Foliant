@@ -56,6 +56,27 @@ public class ModelCatalogTests
     }
 
     [Fact]
+    public async Task ModelCache_ReturnsThePathJoinedOntoARelativeCacheDirectory()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "foliant-tests", Path.GetRandomFileName());
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var asset = ModelCatalog.OcrRecognitionEnglishDict;
+            string relative = Path.GetRelativePath(Environment.CurrentDirectory, dir);
+            await File.WriteAllTextAsync(Path.Combine(dir, asset.FileName), "verified earlier");
+            await File.WriteAllTextAsync(Path.Combine(dir, asset.FileName + ".sha256-ok"), asset.Sha256);
+
+            var cache = new ModelCache(relative, new HttpClient(new FailingHandler()));
+            Assert.Equal(Path.Combine(relative, asset.FileName), await cache.GetPathAsync(asset));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void AllAssets_HavePlainFileNames()
     {
         Assert.All(ModelCatalog.All, a => Assert.Equal(Path.GetFileName(a.FileName), a.FileName));
@@ -68,6 +89,13 @@ public class ModelCatalogTests
     [InlineData("sub\\model.onnx")]
     [InlineData("/etc/escape.onnx")]
     [InlineData("")]
+    [InlineData(".")]
+    [InlineData("   ")]
+    [InlineData("...")]
+    [InlineData("model.onnx.")]
+    [InlineData("model.onnx ")]
+    [InlineData("C:x.onnx")]
+    [InlineData("model.onnx:stream")]
     public async Task ModelCache_RejectsFileNamesOutsideTheCache(string fileName)
     {
         string dir = Path.Combine(Path.GetTempPath(), "foliant-tests", Path.GetRandomFileName());
