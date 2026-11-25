@@ -1,0 +1,7 @@
+Component: Table Transformer (structure recognition v1.1-all, detection), ONNX export
+Assets: https://huggingface.co/Xenova/table-transformer-structure-recognition-v1.1-all/resolve/main/onnx/model.onnx, https://huggingface.co/Xenova/table-transformer-detection/resolve/main/onnx/model.onnx
+Declared: MIT (upstream)
+Approved: owner 2026-11-25: the ONNX exports declare no licence; the upstream Microsoft models are MIT; downloaded at runtime, not shipped
+Source: https://huggingface.co/microsoft/table-transformer-structure-recognition-v1.1-all and https://huggingface.co/microsoft/table-transformer-detection (both MIT); ONNX exports at https://huggingface.co/Xenova, whose model cards declare no licence
+Texts: Licence as declared on the upstream model cards; licence text: https://opensource.org/license/mit
+Retrieved: 2026-11-25

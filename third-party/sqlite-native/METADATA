@@ -1,0 +1,8 @@
+Component: SQLite native library (e_sqlite3 build)
+Packages: SQLitePCLRaw.lib.e_sqlite3
+Declared: none
+Approved: owner 2026-11-25: no declared licence; the code is SQLite, dedicated to the public domain
+Source: https://sqlite.org (packaging: https://github.com/ericsink/SQLitePCL.raw, Copyright 2014-2025 SourceGear, LLC)
+Version: 3.50.3
+Texts: The package declares no licence. Its native code is SQLite, which its authors dedicate to the public domain; LICENSE-sqlite-public-domain.txt is from https://sqlite.org/copyright.html
+Retrieved: 2026-11-25

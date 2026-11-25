@@ -1,0 +1,6 @@
+Component: SLANet_plus table structure, ONNX export
+Assets: https://huggingface.co/PaddlePaddle/SLANet_plus_onnx/resolve/main/inference.onnx
+Declared: Apache-2.0
+Source: https://huggingface.co/PaddlePaddle/SLANet_plus_onnx
+Texts: Licence as declared on the model card; licence text: https://www.apache.org/licenses/LICENSE-2.0
+Retrieved: 2026-11-25

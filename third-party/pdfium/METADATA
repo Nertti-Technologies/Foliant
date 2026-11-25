@@ -1,0 +1,8 @@
+Component: PDFium native binaries (pdfium-binaries build of PDFium)
+Packages: bblanchon.PDFium.*
+Declared: Apache-2.0
+Copyleft-review: owner 2026-11-25: no copyleft code. FreeType is used under its FreeType License (FTL), not the GPLv2 alternative; the LLVM exception and the GPLv3 note in the ICU licence are exception clauses, not terms that apply to these binaries.
+Source: https://github.com/bblanchon/pdfium-binaries (PDFium: https://pdfium.googlesource.com/pdfium)
+Version: 147.0.7690
+Texts: LICENSE (build scripts, MIT) from https://github.com/bblanchon/pdfium-binaries/tree/chromium/7690. NOTICE-*.txt are the licences of PDFium and the libraries compiled into it, from licenses/ in the twelve release archives the packages contain (linux x64/x86/arm/arm64, linux-musl x64/x86/arm64, mac x64/arm64, win x64/x86/arm64) at https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium%2F7690. After line-ending normalisation the archives carry the same texts, except musl.txt (musl builds only) and a comment-marker-only variant of pdfium.txt (macOS); the packages do not include these texts.
+Retrieved: 2026-11-25

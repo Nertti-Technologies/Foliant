@@ -1,0 +1,5 @@
+Component: .NET runtime libraries (dotnet/runtime)
+Packages: System.Numerics.Tensors
+Declared: MIT
+Source: https://github.com/dotnet/runtime
+Texts: LICENSE.TXT and THIRD-PARTY-NOTICES.TXT as shipped inside each package

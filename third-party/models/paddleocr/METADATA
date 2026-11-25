@@ -1,0 +1,6 @@
+Component: PaddleOCR v5 detection, English recognition, dictionary and text-line orientation, ONNX export
+Assets: https://huggingface.co/monkt/paddleocr-onnx/resolve/main/detection/v5/det.onnx, https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/english/rec.onnx, https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/english/dict.txt, https://huggingface.co/monkt/paddleocr-onnx/resolve/main/preprocessing/textline-orientation/PP-LCNet_x1_0_textline_ori.onnx
+Declared: Apache-2.0
+Source: https://huggingface.co/monkt/paddleocr-onnx (export of PaddleOCR, https://github.com/PaddlePaddle/PaddleOCR)
+Texts: Licence as declared on the model card; licence text: https://www.apache.org/licenses/LICENSE-2.0
+Retrieved: 2026-11-25

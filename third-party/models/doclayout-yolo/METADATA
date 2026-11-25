@@ -1,0 +1,7 @@
+Component: DocLayout-YOLO (DocStructBench), ONNX export
+Assets: https://huggingface.co/wybxc/DocLayout-YOLO-DocStructBench-onnx/resolve/main/doclayout_yolo_docstructbench_imgsz1024.onnx
+Declared: Apache-2.0
+Approved: owner 2026-11-25: weights are Apache-2.0 per both model cards; the upstream training code is AGPL-3.0, so get a legal opinion before Foliant bundles or hosts the model
+Source: https://huggingface.co/wybxc/DocLayout-YOLO-DocStructBench-onnx (export of https://huggingface.co/juliozhao/DocLayout-YOLO-DocStructBench, also Apache-2.0)
+Texts: Licence as declared on both model cards; licence text: https://www.apache.org/licenses/LICENSE-2.0
+Retrieved: 2026-11-25
