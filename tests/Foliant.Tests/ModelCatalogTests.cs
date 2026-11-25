@@ -96,26 +96,30 @@ public class ModelCatalogTests
     [InlineData("model.onnx ")]
     [InlineData("C:x.onnx")]
     [InlineData("model.onnx:stream")]
-    public async Task ModelCache_RejectsFileNamesOutsideTheCache(string fileName)
+    public void ModelAsset_RejectsFileNamesOutsideTheCache(string fileName)
     {
-        string dir = Path.Combine(Path.GetTempPath(), "foliant-tests", Path.GetRandomFileName());
-        try
-        {
-            var asset = ModelCatalog.OcrRecognitionEnglishDict with
-            {
-                FileName = fileName,
-                Url = "https://huggingface.co/invalid/never-fetched",
-            };
-            var cache = new ModelCache(dir, new HttpClient(new FailingHandler()));
-
-            await Assert.ThrowsAsync<ArgumentException>(() => cache.GetPathAsync(asset));
-            Assert.False(Directory.Exists(dir));   // rejected before touching the file system
-        }
-        finally
-        {
-            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
-        }
+        var asset = ModelCatalog.OcrRecognitionEnglishDict;
+        Assert.Throws<ArgumentException>(nameof(ModelAsset.FileName),
+            () => new ModelAsset(asset.Id, fileName, asset.Url, asset.Sha256, asset.SizeBytes));
+        Assert.Throws<ArgumentException>(nameof(ModelAsset.FileName),
+            () => asset with { FileName = fileName });
     }
+
+    [Theory]
+    [InlineData("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")]
+    [InlineData("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde")]
+    [InlineData("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdeg")]
+    public void ModelAsset_RejectsInvalidSha256(string sha256)
+    {
+        var asset = ModelCatalog.OcrRecognitionEnglishDict;
+        Assert.Throws<ArgumentException>(nameof(ModelAsset.Sha256),
+            () => new ModelAsset(asset.Id, asset.FileName, asset.Url, sha256, asset.SizeBytes));
+        Assert.Throws<ArgumentException>(nameof(ModelAsset.Sha256),
+            () => asset with { Sha256 = sha256 });
+    }
+
+
+
 
     private sealed class FailingHandler : HttpMessageHandler
     {
