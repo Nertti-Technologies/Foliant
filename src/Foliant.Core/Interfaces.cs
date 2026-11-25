@@ -22,8 +22,9 @@ public interface IPageRenderer
 
     /// <summary>
     /// The page's size in PDF points (1/72 inch) as it renders, or null when unknown. The pipeline
-    /// uses it to keep the raster within <see cref="ProcessingOptions.MaxPagePixels"/>; a renderer
-    /// that returns null is not capped.
+    /// uses it to keep the raster within <see cref="ProcessingOptions.MaxPagePixels"/>. The default
+    /// returns null, and a renderer that returns null is NOT capped: a renderer that may see untrusted
+    /// PDFs should implement this.
     /// </summary>
     /// <param name="pdf">The PDF file contents.</param>
     /// <param name="pageNumber">1-based page number.</param>

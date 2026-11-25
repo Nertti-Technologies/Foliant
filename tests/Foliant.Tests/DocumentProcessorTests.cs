@@ -98,6 +98,9 @@ public class DocumentProcessorTests
         new(new FakeRenderer(), new FakeLayout(), ocr, new FakeTables(),
             new XyCutReadingOrder(), textLayer);
 
+    private static DocumentProcessor NewProcessor(FakeOcr ocr, ITextLayerReader textLayer, FakeRenderer renderer) =>
+        new(renderer, new FakeLayout(), ocr, new FakeTables(), new XyCutReadingOrder(), textLayer);
+
     private static DocumentProcessor NewProcessor(
         FakeOcr ocr, ITextLayerReader textLayer, IScanResolutionEstimator scanResolution) =>
         new(new FakeRenderer(), new FakeLayout(), ocr, new FakeTables(),
@@ -580,8 +583,30 @@ public class DocumentProcessorTests
     [InlineData(double.NaN, 100.0)]
     [InlineData(0.0, 100.0)]
     [InlineData(double.PositiveInfinity, 100.0)]
+    [InlineData(100.0, double.NaN)]
+    [InlineData(100.0, -5.0)]
+    [InlineData(100.0, double.PositiveInfinity)]
     public void CappedDpi_LeavesAnUnknownOrDegenerateSizeUncapped(double w, double h) =>
         Assert.Equal(300, DocumentProcessor.CappedDpi(300, (w, h), 1_000_000));
+
+    [Fact]
+    public void CappedDpi_IsZero_WhenNotEvenOneDpiFits() =>
+        // 3,000,000 pt square at 1 DPI is about 41,667 px square, 1.74 G px: above any allowed cap.
+        Assert.Equal(0, DocumentProcessor.CappedDpi(300, (3_000_000, 3_000_000), int.MaxValue / 4));
+
+    [Fact]
+    public async Task PageTooLargeEvenAtOneDpi_IsNotRendered_AndIsFlagged()
+    {
+        var renderer = new FakeRenderer { PageCount = 1, PageSize = (3_000_000, 3_000_000) };
+        using var processor = NewProcessor(new FakeOcr(), new FakeTextLayer(), renderer);
+
+        var page = Assert.Single((await processor.ProcessAsync(FakePdf, new ProcessingOptions { Verify = false })).Pages);
+
+        Assert.Empty(renderer.RenderDpis);
+        Assert.True(page.NeedsReview);
+        Assert.Contains("too large to render", page.Notice);
+        Assert.Empty(page.Lines);
+    }
 
     [Fact]
     public async Task OversizedScannedPage_RendersAtTheCappedDpi_AndIsFlagged()
@@ -645,7 +670,7 @@ public class DocumentProcessorTests
 
     [Theory]
     [InlineData(999_999L)]
-    [InlineData(1_000_000_001L)]
+    [InlineData(536_870_912L)]
     public async Task MaxPagePixels_OutOfRange_IsRejected(long cap)
     {
         using var processor = NewProcessor(new FakeOcr(), new FakeTextLayer());

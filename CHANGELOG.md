@@ -6,8 +6,10 @@
 - `ProcessingOptions.MaxPagePixels` (default 100 million) bounds every page raster. A page too large
   for `Dpi` renders at the highest DPI that fits (reported in `PageResult.Dpi`, with a `Notice`; an
   OCR-routed page below half the requested DPI is also flagged `NeedsReview`), and an upscale that
-  would exceed it is skipped. `IPageRenderer.GetPageSize` (default: unknown, so not capped) supplies
-  the page size.
+  would exceed it is skipped. A page too large even at 1 DPI is not rendered: it comes back empty
+  with a `Notice` and `NeedsReview`. `IPageRenderer.GetPageSize` supplies the page size; its default
+  returns null, which leaves a custom renderer uncapped, so implement it in renderers that see
+  untrusted PDFs. The cap does not cover an upscaler's internal buffers or an `ImageTransform`.
 
 ## 1.9.0 — 2026-11-25 (third-party notices, DPI and form-field fixes)
 
