@@ -28,7 +28,7 @@ public static class FormTools
         int? page = null,
         CancellationToken cancellationToken = default)
     {
-        var input = await PdfInput.ReadAsync(path, cancellationToken).ConfigureAwait(false);
+        var input = await PdfInput.ReadAsync(path, options.Value, cancellationToken).ConfigureAwait(false);
         if (input.Error is not null) return input.Error;
         byte[] pdf = input.Bytes;
         int totalPages = input.TotalPages;
@@ -89,6 +89,7 @@ public static class FormTools
         "values.")]
     public static async Task<string> MatchTemplate(
         TemplateRouterHolder templates,
+        IOptions<FoliantMcpOptions> options,
         [Description("Absolute path to the PDF on the machine running this server.")] string path,
         [Description("1-based page to check. Omit to scan from page 1.")] int? page = null,
         [Description("When scanning the whole document, check at most this many pages from page 1. " +
@@ -96,7 +97,7 @@ public static class FormTools
         int maxPagesToScan = 25,
         CancellationToken cancellationToken = default)
     {
-        var input = await PdfInput.ReadAsync(path, cancellationToken).ConfigureAwait(false);
+        var input = await PdfInput.ReadAsync(path, options.Value, cancellationToken).ConfigureAwait(false);
         if (input.Error is not null) return input.Error;
         byte[] pdf = input.Bytes;
         int totalPages = input.TotalPages;

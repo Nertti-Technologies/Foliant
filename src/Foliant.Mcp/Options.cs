@@ -26,6 +26,21 @@ public sealed class FoliantMcpOptions
     /// <summary>Documents at or under this page count may use the synchronous extract_summary tool;
     /// larger documents must go through the start_extraction run-ticket. ADR-0005 open item 4.</summary>
     public int SummarySyncPageLimit { get; set; } = 10;
+
+    /// <summary>Largest PDF a tool may read, in bytes; checked before reading (ADR-0010 T4). Default
+    /// 512 MiB, an estimate shared with Foliant.DocumentExtraction's limit: about 16 times the largest
+    /// of 10 real-world books sampled in testing (31 MB). Memory: one copy of the file per tool call in
+    /// progress or queued (extraction runs wait in an unbounded queue holding their bytes). Values above
+    /// Array.MaxLength are treated as Array.MaxLength.</summary>
+    public long MaxInputBytes { get; set; } = 512L * 1024 * 1024;
+
+    /// <summary>Folders tools may read PDFs from, separated by the platform path separator (':' on
+    /// macOS/Linux, ';' on Windows), e.g. <c>Foliant__AllowedRoots</c>. Symbolic links are resolved
+    /// before the check. Tool paths must start with a root as written here or as its real path (e.g.
+    /// both /var/x and /private/var/x on macOS), not through another alias link. Empty → any path the
+    /// server's user can read except network paths (a startup warning says so). Network paths (UNC
+    /// <c>\\host\share</c>, <c>//host/share</c>) are read only when a root listed here is one.</summary>
+    public string? AllowedRoots { get; set; }
 }
 
 /// <summary>
