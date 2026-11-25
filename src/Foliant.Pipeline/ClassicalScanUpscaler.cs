@@ -36,10 +36,8 @@ public sealed class ClassicalScanUpscaler : IScanUpscaler
             new SKImageInfo(w, h, SKColorType.Bgra8888, SKAlphaType.Opaque), Cubic)
             ?? throw new InvalidOperationException("Upscale resize failed.");
 
-        // Dpi is preserved: it is the nominal render DPI, and downstream geometry lives in the
-        // (now larger) pixel space regardless. EffectiveDpi already records the true source quality.
-        // DocumentProcessor derives the raster's actual DPI from the size change and reports it in
-        // PageResult.Dpi and to IFormFieldExtractor, which map pixels to PDF points with it.
-        return SkiaInterop.ToPageImage(dst, image.Dpi);
+        // Dpi scales with the raster, so it still maps pixels to PDF points (PageImage.Dpi's contract).
+        // EffectiveDpi still records the true source quality.
+        return SkiaInterop.ToResizedPageImage(dst, image);
     }
 }

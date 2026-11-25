@@ -11,9 +11,17 @@
   (`UpscaleLowResolutionScans`, or the low-resolution retry). It used to keep the render DPI, so
   `WidthPx / Dpi` and any coordinate conversion were off by the upscale factor on those pages. The
   `dpi` field in the JSON output changes the same way.
-- With `ExtractFormFields` on, a form-field extractor now gets the upscaled raster's DPI on an upscaled
-  page. It used to get the render DPI, so `WidgetFormFieldExtractor` drew widget boxes smaller by the
-  upscale factor and could pair a value with the wrong printed label, or with none.
+- Form fields (`ExtractFormFields`) on upscaled or rotated scans. Extractors now get the raster at its
+  actual DPI and, on a page the orientation detector rotated, upright, with the fields' bounds rotated
+  back into the page's raster. `WidgetFormFieldExtractor` used to draw widget boxes smaller by the
+  upscale factor, or in the unrotated position, and could pair a value with the wrong label or none.
+- `ClassicalScanUpscaler` and `OnnxSuperResolutionUpscaler` now scale `PageImage.Dpi` with the raster
+  (it used to stay at the render DPI), so it still maps pixels to PDF points.
+- An `ImageTransform` that resizes the page now sets the DPI of the page's geometry and of the text
+  layer it is read at, from the DPI the transform reports.
+
+### Changed
+- Form-field extraction no longer runs on a template-routed page, whose fields come from the template.
 
 ## 1.8.1 — 2026-07-21 (complete the 1.8.0 release)
 
