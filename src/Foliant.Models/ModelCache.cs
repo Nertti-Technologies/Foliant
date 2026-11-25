@@ -39,13 +39,14 @@ public sealed class ModelCache
         && Path.GetFileName(fileName) == fileName
         && !Path.IsPathRooted(fileName);
 
-    // The joined path, after confirming its canonical form is inside the cache directory (defence in
+    // The joined path (Path.Join never drops the directory, unlike Path.Combine with a rooted name),
+    // after confirming its canonical form is inside the cache directory (defence in
     // depth behind IsPlainFileName). Returned as joined, so relative cache directories keep their form.
     private string ContainedPath(ModelAsset asset)
     {
         string root = Path.GetFullPath(CacheDirectory);
         if (!Path.EndsInDirectorySeparator(root)) root += Path.DirectorySeparatorChar;   // a root keeps its own
-        string path = Path.Combine(CacheDirectory, asset.FileName);
+        string path = Path.Join(CacheDirectory, asset.FileName);
         string full = Path.GetFullPath(path);
         if (!full.StartsWith(root, StringComparison.Ordinal) || full.Length == root.Length)
             throw new ArgumentException(

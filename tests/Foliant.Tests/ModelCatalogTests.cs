@@ -58,17 +58,17 @@ public class ModelCatalogTests
     [Fact]
     public async Task ModelCache_ReturnsThePathJoinedOntoARelativeCacheDirectory()
     {
-        string dir = Path.Combine(Path.GetTempPath(), "foliant-tests", Path.GetRandomFileName());
+        string dir = Path.Join(Path.GetTempPath(), "foliant-tests", Path.GetRandomFileName());
         Directory.CreateDirectory(dir);
         try
         {
             var asset = ModelCatalog.OcrRecognitionEnglishDict;
             string relative = Path.GetRelativePath(Environment.CurrentDirectory, dir);
-            await File.WriteAllTextAsync(Path.Combine(dir, asset.FileName), "verified earlier");
-            await File.WriteAllTextAsync(Path.Combine(dir, asset.FileName + ".sha256-ok"), asset.Sha256);
+            await File.WriteAllTextAsync(Path.Join(dir, asset.FileName), "verified earlier");
+            await File.WriteAllTextAsync(Path.Join(dir, asset.FileName + ".sha256-ok"), asset.Sha256);
 
             var cache = new ModelCache(relative, new HttpClient(new FailingHandler()));
-            Assert.Equal(Path.Combine(relative, asset.FileName), await cache.GetPathAsync(asset));
+            Assert.Equal(Path.Join(relative, asset.FileName), await cache.GetPathAsync(asset));
         }
         finally
         {
