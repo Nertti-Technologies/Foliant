@@ -20,8 +20,9 @@
   ignored for the frame. A rotation applied by `ProcessingOptions.ImageTransform` is not described by
   the frame.
 - **For implementers:** an `IFormFieldExtractor` that wraps other extractors should override the
-  `PageFrame` overload and pass the frame on (mocks set up for the four-argument overload only are
-  still called, through the default). A custom `IPagePreprocessor` that deskews must report the angle
+  `PageFrame` overload and pass the frame on. A mocking library that intercepts interface members (for
+  example Moq) also intercepts the new overload, which the pipeline now calls: set it up too, or enable
+  calling the base implementation. A custom `IPagePreprocessor` that deskews must report the angle
   as documented, or 0; the pipeline cannot detect a wrong sign.
 
 ## 1.9.0 — 2026-11-25 (third-party notices, DPI and form-field fixes)
