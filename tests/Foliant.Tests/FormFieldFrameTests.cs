@@ -139,7 +139,10 @@ public sealed class FormFieldFrameTests
         var p = image.PixelsBgra8888;
         for (int i = 0; i < image.Width * image.Height; i++)
             if (p[i * 4 + 2] > 150 && p[i * 4 + 1] < 100 && p[i * 4] < 100)
-                (sx, sy, n) = (sx + i % image.Width, sy + i / image.Width, n + 1);
+            {
+                int row = Math.DivRem(i, image.Width, out int col);
+                (sx, sy, n) = (sx + col, sy + row, n + 1);
+            }
         Assert.True(n > 0, "marker not found");
         return (sx / n, sy / n);
     }

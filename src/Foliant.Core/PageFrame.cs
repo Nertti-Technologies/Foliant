@@ -56,7 +56,9 @@ public sealed record PageFrame
     public BoundingBox FromRendered(BoundingBox box)
     {
         var turned = RotateClockwise(box, OrientationDegrees, RenderedWidth, RenderedHeight);
-        return DeskewDegrees == 0f ? turned : RotateAboutCentre(turned, -DeskewDegrees, Width, Height);
+        // Below 1e-6 degrees a point 100,000 px from the centre moves under 0.002 px (arithmetic), so the
+        // box is returned unrotated and unclipped.
+        return Math.Abs(DeskewDegrees) < 1e-6f ? turned : RotateAboutCentre(turned, -DeskewDegrees, Width, Height);
     }
 
     // Exact for a quarter turn: the box of a raster rotated clockwise by `degrees`, matching the pixel
