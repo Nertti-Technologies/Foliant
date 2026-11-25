@@ -100,7 +100,9 @@ public interface IFormFieldExtractor
     /// relates to the page as rendered; an extractor that maps PDF coordinates to pixels (PDF points x DPI
     /// / 72) maps them through <see cref="PageFrame.FromRendered"/> so they line up with
     /// <paramref name="lines"/>. The default ignores the frame and calls the four-argument overload, which
-    /// suits extractors that work from the lines alone.
+    /// suits extractors that work from the lines alone. An extractor that wraps others (a decorator or
+    /// composite) should override this overload and pass the frame on; otherwise the inner extractors
+    /// get <see cref="PageFrame.Of"/> of the image, as if the page had not been turned or deskewed.
     /// </summary>
     /// <param name="pdf">The PDF file contents.</param>
     /// <param name="pageNumber">1-based page number.</param>

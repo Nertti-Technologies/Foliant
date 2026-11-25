@@ -46,6 +46,7 @@ Inputs/outputs and options — the heart of the contract:
 - `TableStructure`, `TableCell`, `TableExtraction`
 - `TextLayerPage`, `PreprocessedPage`, `PageImage`
 - `BoundingBox` (readonly record struct) — the geometry primitive used across the data types
+- `PageFrame` — how a page's final raster was turned and deskewed from the page as rendered (1.10.0)
 - Form fields (0.6/0.7): `FormField`, `FormProfile`, `FormFieldSpec`, plus `PageResult.FormFields`
 - Enums: `RegionType`, `TextSource`, `TextLayerMode`, `FieldKind`, `FormFieldSource`, `ValueAnchor`
 
@@ -70,7 +71,8 @@ Implement these to swap a pipeline stage; Foliant commits to keeping them stable
 - `ClassicalScanUpscaler` — reference `IScanUpscaler` (Gate 8: net-negative, **not** wired by
   default; retained as the seam's reference impl)
 - `ScanDegrader` — deterministic scan-degradation transforms for robustness measurement
-- `AcroFormFieldExtractor`, `GeometricFormFieldExtractor`, `CompositeFormFieldExtractor`
+- `AcroFormFieldExtractor`, `GeometricFormFieldExtractor`, `WidgetFormFieldExtractor`,
+  `CompositeFormFieldExtractor`
 - Enums: `TableBackend`, `ReadingOrderBackend`
 
 ### Backends and companion packages
