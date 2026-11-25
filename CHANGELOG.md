@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.9.0 — 2026-11-25 (third-party notices, DPI and form-field fixes)
+
+Minor. Adds the shipped notices file and corrects the DPI reported for upscaled pages, which changes
+the `dpi` value and form-field positions on those pages. The new experimental
+`Foliant.DocumentExtraction` package is released on its own preview line (tags `docext-v*`, see its
+CHANGELOG); it is not part of this release.
 
 ### Added
 - Every package ships `THIRD-PARTY-NOTICES.txt`, the licence and attribution texts of everything it
@@ -20,8 +25,12 @@
 - An `ImageTransform` that resizes the page now sets the DPI of the page's geometry and of the text
   layer it is read at, from the DPI the transform reports.
 
+- Model asset file names that would resolve outside the model cache directory are rejected.
+
 ### Changed
 - Form-field extraction no longer runs on a template-routed page, whose fields come from the template.
+- ZeroDep and ZeroDep.Abstractions 2.2.0.
+- The build uses the .NET 11 SDK (11.0.100); packages still target `net10.0`.
 
 ## 1.8.1 — 2026-07-21 (complete the 1.8.0 release)
 
