@@ -584,8 +584,9 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
     /// </summary>
     internal static int CappedDpi(int dpi, (double Width, double Height)? pageSize, long maxPixels)
     {
-        if (pageSize is not { } size || !(size.Width > 0) || !(size.Height > 0)
-            || double.IsInfinity(size.Width) || double.IsInfinity(size.Height))
+        // NaN, infinite, zero and negative sizes are all "unknown" (NaN fails every comparison).
+        if (pageSize is not { } size || !double.IsFinite(size.Width) || !double.IsFinite(size.Height)
+            || size.Width <= 0 || size.Height <= 0)
             return dpi;
         double fit = Math.Floor(72.0 * Math.Sqrt(maxPixels / (size.Width * size.Height)));
         return fit >= dpi ? dpi : (int)fit;   // 0 when not even 1 DPI fits
