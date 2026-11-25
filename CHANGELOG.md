@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.10.0 — 2026-11-25 (page pixel cap, form-field frame, MCP input checks)
+
+Minor. Adds `ProcessingOptions.MaxPagePixels`, which lowers the render DPI of very large pages (they
+report the DPI they were rendered at), and `PageFrame`, which fixes form fields on scanned pages the
+pipeline turned upright, a regression in 1.9.0. `Foliant.DocumentExtraction` has no changes and is not
+released with it.
 
 ### Security
 - MCP server (`Foliant.Mcp`, not packaged): tool calls now check a PDF path before reading it. The path
@@ -29,6 +34,9 @@
 - `ModelAsset` checks `FileName` (a bare file name) and `Sha256` (64 lower-case hex characters) when it
   is built, including through `with`, and throws `ArgumentException`. Such assets already failed when
   used; they now fail where they are made.
+- `DocumentProcessor.ProcessAsync` throws `ArgumentOutOfRangeException` up front for
+  `ProcessingOptions.Dpi` below 1 or `MaxPagePixels` outside 1,000,000 to 536,870,897. A `Dpi` below 1
+  already failed, part way through the first page.
 
 ### Fixed
 - Form fields on scanned pages the orientation detector turned (a regression in 1.9.0): extractors
