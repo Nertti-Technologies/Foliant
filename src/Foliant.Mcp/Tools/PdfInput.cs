@@ -46,7 +46,7 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
             full = Path.GetFullPath(path);
             if (roots is not null && !roots.Any(root => IsInside(full, root.Configured) || IsInside(full, root.Real)))
                 return OutsideRoots(path);
-            real = RealPath(full);
+            real = RealPath(full, refuseNetworkLinks: roots is not null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
@@ -126,11 +126,17 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
         return roots;
     }
 
-    // \\?\ and \\.\ paths skip Windows path normalisation (no ".." collapsing) and reach devices
-    // and named pipes; a PDF never needs them.
-    private static bool IsDevicePath(string path) =>
-        path.StartsWith(@"\\?\", StringComparison.Ordinal) || path.StartsWith(@"\\.\", StringComparison.Ordinal)
-        || path.StartsWith("//?/", StringComparison.Ordinal) || path.StartsWith("//./", StringComparison.Ordinal);
+    // Windows device paths skip path normalisation (no ".." collapsing) and reach devices and named
+    // pipes; a PDF never needs them. Matches .NET's own rule: two separators of either kind, '.' or '?',
+    // a separator; or the NT prefix \??\.
+    internal static bool IsDevicePath(string path) =>
+        (path.Length >= 4 && IsSeparator(path[0]) && IsSeparator(path[1]) && (path[2] is '.' or '?') && IsSeparator(path[3]))
+        || path.StartsWith(@"\??\", StringComparison.Ordinal);
+
+    // Two leading separators: a UNC path (Windows) or an implementation-defined root (POSIX).
+    private static bool IsNetworkPath(string path) => path.Length >= 2 && IsSeparator(path[0]) && IsSeparator(path[1]);
+
+    private static bool IsSeparator(char c) => c is '/' or '\\';
 
     private static PdfInput OutsideRoots(string path) =>
         Failed($"The file is outside the folders this server may read (Foliant__AllowedRoots): {path}");
@@ -144,9 +150,10 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
     /// <summary>
     /// The canonical path with every symbolic link resolved, component by component (a link to a
     /// directory part way along would otherwise hide where the file really is). Throws
-    /// <see cref="IOException"/> on a link loop.
+    /// <see cref="IOException"/> on a link loop and, with <paramref name="refuseNetworkLinks"/>, on a
+    /// link to a network or device path, before that target is touched.
     /// </summary>
-    internal static string RealPath(string path)
+    internal static string RealPath(string path, bool refuseNetworkLinks = false)
     {
         string full = Path.GetFullPath(path);
         string root = Path.GetPathRoot(full)!;
@@ -165,6 +172,8 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
             }
 
             if (++hops > MaxLinkHops) throw new IOException("Too many symbolic links.");
+            if (refuseNetworkLinks && (IsNetworkPath(target) || IsDevicePath(target)))
+                throw new IOException("A symbolic link points to a network or device path.");
             string resolved = Path.GetFullPath(target, current);
             string resolvedRoot = Path.GetPathRoot(resolved)!;
             // Restart from the link's target, then continue with the remaining components.

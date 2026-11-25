@@ -36,7 +36,9 @@ public sealed class FoliantMcpOptions
 
     /// <summary>Folders tools may read PDFs from, separated by the platform path separator (':' on
     /// macOS/Linux, ';' on Windows), e.g. <c>Foliant__AllowedRoots</c>. Symbolic links are resolved
-    /// before the check. Empty → any path the server's user can read (a startup warning says so).</summary>
+    /// before the check. Tool paths must start with a root as written here or as its real path (e.g.
+    /// both /var/x and /private/var/x on macOS), not through another alias link. Empty → any path the
+    /// server's user can read (a startup warning says so).</summary>
     public string? AllowedRoots { get; set; }
 }
 

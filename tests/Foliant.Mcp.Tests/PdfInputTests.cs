@@ -79,6 +79,38 @@ public class PdfInputTests
         Assert.Contains("Device paths are not accepted", input.Error);
     }
 
+    [Theory]
+    [InlineData(@"\\?\C:\a.pdf", true)]
+    [InlineData(@"\\.\pipe\x", true)]
+    [InlineData(@"/\.\pipe\x", true)]
+    [InlineData(@"\/?/C:/a.pdf", true)]
+    [InlineData(@"\??\C:\a.pdf", true)]
+    [InlineData(@"\\server\share\a.pdf", false)]
+    [InlineData("/tmp/a.pdf", false)]
+    public void IsDevicePath_MatchesTheDotNetRule(string path, bool expected) =>
+        Assert.Equal(expected, PdfInput.IsDevicePath(path));
+
+    [Fact]
+    public async Task LinkInsideARoot_ToANetworkPath_IsRefusedWithoutFollowingIt()
+    {
+        if (OperatingSystem.IsWindows()) return;   // creating a link to a UNC target needs a share to point at
+        string allowed = TempDir();
+        try
+        {
+            string link = Path.Combine(allowed, "net");
+            File.CreateSymbolicLink(link, "//203.0.113.1/share");
+
+            var input = await PdfInput.ReadAsync(Path.Combine(link, "x.pdf"), new FoliantMcpOptions { AllowedRoots = allowed },
+                CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Contains("Could not resolve the path", input.Error);
+        }
+        finally
+        {
+            Directory.Delete(allowed, recursive: true);
+        }
+    }
+
     [Fact]
     public async Task PathOutsideTheRoots_IsRefusedAsText_BeforeItIsResolved()
     {
