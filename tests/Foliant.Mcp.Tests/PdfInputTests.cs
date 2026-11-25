@@ -39,11 +39,64 @@ public class PdfInputTests
 
     private static readonly byte[] MinimalHeader = "%PDF-1.7\n"u8.ToArray();
 
+    // Creating symbolic links needs a privilege on Windows without Developer Mode: skip, don't fail.
+    private static bool TryCreateLinks(params Action[] create)
+    {
+        try
+        {
+            foreach (var c in create) c();
+            return true;
+        }
+        catch (Exception ex) when (OperatingSystem.IsWindows() && ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     private static string TempDir()
     {
         string dir = Path.Combine(Path.GetTempPath(), $"foliant-mcp-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         return dir;
+    }
+
+    [Fact]
+    public async Task PathWithANulCharacter_IsAShapedError()
+    {
+        string path = Path.Combine(Path.GetTempPath(), "a\0b.pdf");
+        var input = await PdfInput.ReadAsync(path, new FoliantMcpOptions(), CancellationToken.None);
+        Assert.Contains("must be absolute", input.Error);
+    }
+
+    [Theory]
+    [InlineData(@"\\?\C:\docs\a.pdf")]
+    [InlineData(@"\\.\pipe\foliant")]
+    [InlineData("//./pipe/foliant")]
+    public async Task DevicePath_IsRefused(string path)
+    {
+        if (!Path.IsPathFullyQualified(path)) return;   // not an absolute path on this OS: refused earlier
+        var input = await PdfInput.ReadAsync(path, new FoliantMcpOptions(), CancellationToken.None);
+        Assert.Contains("Device paths are not accepted", input.Error);
+    }
+
+    [Fact]
+    public async Task PathOutsideTheRoots_IsRefusedAsText_BeforeItIsResolved()
+    {
+        string allowed = TempDir();
+        try
+        {
+            // A network path outside the roots: refused by the textual check, so it is never stat'ed.
+            string unc = OperatingSystem.IsWindows() ? @"\\203.0.113.1\share\x.pdf" : "//203.0.113.1/share/x.pdf";
+            var options = new FoliantMcpOptions { AllowedRoots = allowed };
+
+            var input = await PdfInput.ReadAsync(unc, options, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Contains("outside the folders", input.Error);
+        }
+        finally
+        {
+            Directory.Delete(allowed, recursive: true);
+        }
     }
 
     [Fact]
@@ -144,9 +197,9 @@ public class PdfInputTests
             string target = Path.Combine(other, "secret.pdf");
             await File.WriteAllBytesAsync(target, MinimalHeader);
             string link = Path.Combine(allowed, "link.pdf");
-            File.CreateSymbolicLink(link, target);
             string dirLink = Path.Combine(allowed, "dir");
-            Directory.CreateSymbolicLink(dirLink, other);
+            if (!TryCreateLinks(() => File.CreateSymbolicLink(link, target), () => Directory.CreateSymbolicLink(dirLink, other)))
+                return;
             var options = new FoliantMcpOptions { AllowedRoots = allowed };
 
             var viaFile = await PdfInput.ReadAsync(link, options, CancellationToken.None);
@@ -191,8 +244,8 @@ public class PdfInputTests
         try
         {
             string a = Path.Combine(dir, "a"), b = Path.Combine(dir, "b");
-            File.CreateSymbolicLink(a, b);
-            File.CreateSymbolicLink(b, a);
+            if (!TryCreateLinks(() => File.CreateSymbolicLink(a, b), () => File.CreateSymbolicLink(b, a)))
+                return;
             Assert.Throws<IOException>(() => PdfInput.RealPath(a));
         }
         finally

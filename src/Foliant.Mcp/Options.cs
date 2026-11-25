@@ -29,7 +29,9 @@ public sealed class FoliantMcpOptions
 
     /// <summary>Largest PDF a tool may read, in bytes; checked before reading (ADR-0010 T4). Default
     /// 512 MiB, an estimate shared with Foliant.DocumentExtraction's limit: about 16 times the largest
-    /// of 10 real-world books sampled in testing (31 MB). Memory while reading: one copy of the file.</summary>
+    /// of 10 real-world books sampled in testing (31 MB). Memory: one copy of the file per tool call in
+    /// progress or queued (extraction runs wait in an unbounded queue holding their bytes). Values above
+    /// Array.MaxLength are treated as Array.MaxLength.</summary>
     public long MaxInputBytes { get; set; } = 512L * 1024 * 1024;
 
     /// <summary>Folders tools may read PDFs from, separated by the platform path separator (':' on

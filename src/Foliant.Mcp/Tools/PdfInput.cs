@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Foliant.Mcp.Extraction;
 using Foliant.Mcp.Shaping;
@@ -8,8 +9,10 @@ namespace Foliant.Mcp.Tools;
 /// <remarks>
 /// The path comes from the MCP client, which acts on prompts that may contain document text, so it is
 /// treated as untrusted input (ADR-0010 T4). Checks, in order, before the file is read: the path is
-/// absolute; with <see cref="FoliantMcpOptions.AllowedRoots"/> set, its real path (every symbolic link
-/// resolved) is inside one of them; it is at least as long as the signature and no larger than
+/// absolute and not a Windows device path (<c>\\?\</c>, <c>\\.\</c>); with
+/// <see cref="FoliantMcpOptions.AllowedRoots"/> set, the path as written is inside a root (checked as
+/// text, so a UNC or automounted path outside the roots is refused before the file system is touched)
+/// and so is its real path (every symbolic link resolved); it is at least as long as the signature and no larger than
 /// <see cref="FoliantMcpOptions.MaxInputBytes"/>; and it starts with the PDF signature. Errors name the
 /// failure, never an exception message.
 /// </remarks>
@@ -29,22 +32,29 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
     {
         ArgumentNullException.ThrowIfNull(options);
         cancellationToken.ThrowIfCancellationRequested();
-        if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
+        if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path) || path.Contains('\0', StringComparison.Ordinal))
             return Failed("The path must be absolute.");
+        if (IsDevicePath(path))
+            return Failed($"Device paths are not accepted: {path}");
 
-        string real;
+        var roots = Roots(options);
+        string full, real;
         try
         {
-            real = RealPath(path);
+            // Guard before touch: with roots set, the path as written must already be inside one, so
+            // nothing outside them (a UNC share, an automount) is stat'ed while resolving links.
+            full = Path.GetFullPath(path);
+            if (roots is not null && !roots.Any(root => IsInside(full, root.Configured) || IsInside(full, root.Real)))
+                return OutsideRoots(path);
+            real = RealPath(full);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             return Failed($"Could not resolve the path: {path}");
         }
 
-        var roots = Roots(options);
-        if (roots is not null && !roots.Any(root => IsInside(real, root)))
-            return Failed($"The file is outside the folders this server may read (Foliant__AllowedRoots): {path}");
+        if (roots is not null && !roots.Any(root => IsInside(real, root.Real)))
+            return OutsideRoots(path);
 
         var file = new FileInfo(real);
         if (!file.Exists)
@@ -53,8 +63,9 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
         // signature can be a PDF, so it is refused before the file is opened.
         if (file.Length < Signature.Length)
             return Failed($"Not a PDF file (too short): {path}");
-        if (file.Length > options.MaxInputBytes)
-            return Failed($"The file is larger than the {options.MaxInputBytes:N0}-byte limit (Foliant__MaxInputBytes).");
+        long maxBytes = Math.Min(options.MaxInputBytes, Array.MaxLength);
+        if (file.Length > maxBytes)
+            return Failed($"The file is larger than the {maxBytes.ToString("N0", CultureInfo.InvariantCulture)}-byte limit (Foliant__MaxInputBytes).");
 
         try
         {
@@ -63,13 +74,16 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
                              bufferSize: 1, useAsync: true))
             {
                 // Read the length checked above; a file that grows meanwhile is not read past it.
-                long length = Math.Min(stream.Length, options.MaxInputBytes);
+                long length = Math.Min(stream.Length, maxBytes);
                 pdf = new byte[length];
-                await stream.ReadExactlyAsync(pdf, cancellationToken).ConfigureAwait(false);
+                // The signature first, so a large non-PDF is refused after reading 1 KiB, not all of it.
+                int head = (int)Math.Min(length, SignatureWindow);
+                await stream.ReadExactlyAsync(pdf.AsMemory(0, head), cancellationToken).ConfigureAwait(false);
+                if (pdf.AsSpan(0, head).IndexOf(Signature) < 0)
+                    return Failed($"Not a PDF file (no %PDF- header): {path}");
+                await stream.ReadExactlyAsync(pdf.AsMemory(head), cancellationToken).ConfigureAwait(false);
             }
 
-            if (pdf.AsSpan(0, Math.Min(pdf.Length, SignatureWindow)).IndexOf(Signature) < 0)
-                return Failed($"Not a PDF file (no %PDF- header): {path}");
             return new PdfInput(pdf, Pdf.GetPageCount(pdf), null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -84,24 +98,26 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
     }
 
     /// <summary>
-    /// The configured roots as real paths, or null when none are configured (any path is allowed).
-    /// Missing, relative or unresolvable entries are dropped; if none is usable the list is empty and
-    /// nothing may be read, rather than falling back to everything.
+    /// The configured roots, each as written (made absolute) and as its real path, or null when none
+    /// are configured (any path is allowed). Missing, relative, device or unresolvable entries are
+    /// dropped; if none is usable the list is empty and nothing may be read, rather than falling back
+    /// to everything. Roots are operator configuration, so resolving them touches only trusted paths.
     /// </summary>
-    internal static IReadOnlyList<string>? Roots(FoliantMcpOptions options)
+    internal static IReadOnlyList<(string Configured, string Real)>? Roots(FoliantMcpOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.AllowedRoots)) return null;
-        var roots = new List<string>();
+        var roots = new List<(string, string)>();
         foreach (string entry in options.AllowedRoots.Split(
                      Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            if (!Path.IsPathFullyQualified(entry)) continue;
+            if (!Path.IsPathFullyQualified(entry) || IsDevicePath(entry)) continue;
             try
             {
-                string root = RealPath(entry);
-                if (Directory.Exists(root)) roots.Add(root);
+                string configured = Path.GetFullPath(entry);
+                string real = RealPath(configured);
+                if (Directory.Exists(real)) roots.Add((configured, real));
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
                 // An unresolvable root grants nothing.
             }
@@ -109,6 +125,15 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
 
         return roots;
     }
+
+    // \\?\ and \\.\ paths skip Windows path normalisation (no ".." collapsing) and reach devices
+    // and named pipes; a PDF never needs them.
+    private static bool IsDevicePath(string path) =>
+        path.StartsWith(@"\\?\", StringComparison.Ordinal) || path.StartsWith(@"\\.\", StringComparison.Ordinal)
+        || path.StartsWith("//?/", StringComparison.Ordinal) || path.StartsWith("//./", StringComparison.Ordinal);
+
+    private static PdfInput OutsideRoots(string path) =>
+        Failed($"The file is outside the folders this server may read (Foliant__AllowedRoots): {path}");
 
     internal static bool IsInside(string path, string root)
     {
@@ -152,7 +177,8 @@ public sealed record PdfInput(byte[] Bytes, int TotalPages, string? Error)
         return current;
     }
 
-    // Windows and macOS file systems are case-insensitive by default; Linux is case-sensitive.
+    // Windows and macOS file systems are case-insensitive by default; Linux is case-sensitive. On a
+    // case-sensitive macOS volume this admits a sibling folder differing only in case from a root.
     private static StringComparison PathComparison =>
         OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
 
