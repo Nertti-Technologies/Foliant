@@ -37,7 +37,7 @@ public sealed record ProcessingOptions
     /// <see cref="ProcessingOptions.ImageTransform"/>, and renderers that do not report a page size
     /// (<see cref="IPageRenderer.GetPageSize"/>). Default 100 million, an estimate: it leaves Letter
     /// and A4 untouched up to 600 DPI and A0 at about 250 DPI. Range 1 million (an estimate: Letter
-    /// at about 110 DPI) to 536,870,911 (int.MaxValue / 4, the most BGRA pixels one
+    /// at about 110 DPI) to 536,870,897 (Array.MaxLength / 4, the most BGRA pixels one
     /// <see cref="PageImage"/> buffer can hold).
     /// </summary>
     public long MaxPagePixels { get; init; } = 100_000_000;

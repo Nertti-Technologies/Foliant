@@ -592,7 +592,7 @@ public class DocumentProcessorTests
     [Fact]
     public void CappedDpi_IsZero_WhenNotEvenOneDpiFits() =>
         // 3,000,000 pt square at 1 DPI is about 41,667 px square, 1.74 G px: above any allowed cap.
-        Assert.Equal(0, DocumentProcessor.CappedDpi(300, (3_000_000, 3_000_000), int.MaxValue / 4));
+        Assert.Equal(0, DocumentProcessor.CappedDpi(300, (3_000_000, 3_000_000), Array.MaxLength / 4));
 
     [Fact]
     public async Task PageTooLargeEvenAtOneDpi_IsNotRendered_AndIsFlagged()
@@ -668,9 +668,49 @@ public class DocumentProcessorTests
         Assert.Null(page.Notice);                            // the render itself was not capped
     }
 
+    [Fact]
+    public async Task Dpi_BelowOne_IsRejected()
+    {
+        using var processor = NewProcessor(new FakeOcr(), new FakeTextLayer());
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            processor.ProcessAsync(FakePdf, new ProcessingOptions { Dpi = 0 }));
+    }
+
+    private sealed class NoTextOcr : IOcrEngine
+    {
+        public IReadOnlyList<TextLine> Recognize(PageImage page) => [];
+        public void Dispose() { }
+    }
+
+    [Fact]
+    public async Task RetryLadder_StaysWithinTheCap()
+    {
+        // 1000 x 1000 pt at 72 DPI is exactly the 1 M px cap: the rung-1 2x upscale (4 M px) is skipped
+        // and the rung-2 re-render's DPI is capped back to 72, so no retry raster is produced.
+        var renderer = new FakeRenderer { PageCount = 1, PageSize = (1000, 1000) };
+        var upscaler = new FakeUpscaler();
+        using var processor = new DocumentProcessor(renderer, new FakeLayout(), new NoTextOcr(),
+            new FakeTables(), new XyCutReadingOrder(), new FakeTextLayer { WordCount = 0 },
+            scanResolution: new FakeScanResolution { Dpi = 40 }, scanUpscaler: upscaler);
+
+        var page = Assert.Single((await processor.ProcessAsync(FakePdf, new ProcessingOptions
+        {
+            Dpi = 72,
+            Verify = false,
+            DetectOrientation = false,
+            RetryLowResolutionPages = true,
+            LowResolutionUpscaleFactor = 2.0f,
+            MaxPagePixels = 1_000_000,
+        })).Pages);
+
+        Assert.True(page.NeedsReview);         // nothing recovered: the honesty flag still fires
+        Assert.Equal(0, upscaler.Calls);
+        Assert.Equal([72], renderer.RenderDpis);
+    }
+
     [Theory]
     [InlineData(999_999L)]
-    [InlineData(536_870_912L)]
+    [InlineData(536_870_898L)]
     public async Task MaxPagePixels_OutOfRange_IsRejected(long cap)
     {
         using var processor = NewProcessor(new FakeOcr(), new FakeTextLayer());

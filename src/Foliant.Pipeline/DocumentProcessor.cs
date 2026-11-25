@@ -102,8 +102,9 @@ public sealed class DocumentProcessor : IDocumentProcessor, IDisposable
     {
         ArgumentNullException.ThrowIfNull(pdf);
         options ??= ProcessingOptions.Default;
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.Dpi, 1, nameof(options));
         ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxPagePixels, 1_000_000L, nameof(options));
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.MaxPagePixels, int.MaxValue / 4, nameof(options));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.MaxPagePixels, Array.MaxLength / 4, nameof(options));
         return Task.Run(() => Process(pdf, options, cancellationToken), cancellationToken);
     }
 
